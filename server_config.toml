@@ -1,0 +1,15 @@
+tcp_addr = "127.0.0.1:8080"
+tickers_file = "tickers.txt"
+quote_rate_ms = 1000
+keepalive_timeout_secs = 5
+
+[initial_prices]
+AAPL = 150.0
+GOOGL = 140.0
+TSLA = 250.0
+MSFT = 380.0
+NVDA = 500.0
+AMZN = 180.0
+META = 350.0
+JPM = 155.0
+
