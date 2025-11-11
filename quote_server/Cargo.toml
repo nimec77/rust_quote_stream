@@ -5,3 +5,5 @@ edition.workspace = true
 
 [dependencies]
 quote_common = { path = "../quote_common" }
+crossbeam = { workspace = true }
+rand = { workspace = true }
