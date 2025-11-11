@@ -7,7 +7,9 @@ use std::time::Duration;
 use crossbeam::channel::{self, Receiver, Sender};
 use rand::{Rng, rng};
 
-use quote_common::{DEFAULT_INITIAL_PRICE, DEFAULT_QUOTE_RATE_MS, POPULAR_TICKERS, StockQuote};
+use quote_common::{
+    DEFAULT_INITIAL_PRICE, DEFAULT_QUOTE_RATE_MS, POPULAR_TICKERS, QuoteError, StockQuote,
+};
 
 /// Generates stock quotes on a fixed interval and broadcasts them over a channel.
 pub struct QuoteGenerator {
@@ -87,15 +89,15 @@ pub fn start_generator(
     tickers: Vec<String>,
     initial_prices: HashMap<String, f64>,
     quote_rate_ms: Option<u64>,
-) -> (Receiver<StockQuote>, thread::JoinHandle<()>) {
+) -> Result<(Receiver<StockQuote>, thread::JoinHandle<()>), QuoteError> {
     let generator = QuoteGenerator::new(tickers, &initial_prices, quote_rate_ms);
     let (sender, receiver) = channel::unbounded();
     let handle = thread::Builder::new()
         .name("quote-generator".to_string())
         .spawn(move || generator.run(sender))
-        .expect("failed to spawn quote generator");
+        .map_err(QuoteError::from)?;
 
-    (receiver, handle)
+    Ok((receiver, handle))
 }
 
 #[cfg(test)]
@@ -132,7 +134,8 @@ mod tests {
     #[test]
     fn test_start_generator_returns_receiver() {
         let tickers = vec!["AAPL".to_string(), "TSLA".to_string()];
-        let (receiver, handle) = start_generator(tickers.clone(), HashMap::new(), Some(5));
+        let (receiver, handle) =
+            start_generator(tickers.clone(), HashMap::new(), Some(5)).expect("start generator");
         let received: Vec<StockQuote> = receiver.iter().take(4).collect();
         assert_eq!(received.len(), 4);
         for quote in &received {
