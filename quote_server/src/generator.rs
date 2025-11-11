@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::collections::{HashMap, HashSet};
 use std::thread;
 use std::time::Duration;

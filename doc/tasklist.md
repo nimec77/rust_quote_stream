@@ -6,7 +6,7 @@
 |-----------|-------------|--------|------------|
 | 0️⃣ | Project Setup | ✅ Completed | 100% |
 | 1️⃣ | Common Library | ✅ Completed | 100% |
-| 2️⃣ | Quote Generator | ⏳ Pending | 0% |
+| 2️⃣ | Quote Generator | ✅ Completed | 100% |
 | 3️⃣ | TCP Server | ⏳ Pending | 0% |
 | 4️⃣ | UDP Streaming | ⏳ Pending | 0% |
 | 5️⃣ | Keep-Alive Mechanism | ⏳ Pending | 0% |
@@ -67,20 +67,20 @@
 **Goal:** Generate continuous stream of stock quotes
 
 ### Tasks:
-- [ ] Create `generator.rs` in `quote_server`
-- [ ] Implement `QuoteGenerator` struct with ticker state (HashMap)
-- [ ] Implement random walk price algorithm
-- [ ] Implement volume generation (popular vs regular tickers)
-- [ ] Create MPMC channel for broadcasting quotes
-- [ ] Spawn generator thread in main
-- [ ] Add dependencies: `rand`, `crossbeam`
-- [ ] Write unit tests for price/volume generation
+- [x] Create `generator.rs` in `quote_server`
+- [x] Implement `QuoteGenerator` struct with ticker state (HashMap)
+- [x] Implement random walk price algorithm
+- [x] Implement volume generation (popular vs regular tickers)
+- [x] Create MPMC channel for broadcasting quotes
+- [x] Spawn generator thread in main
+- [x] Add dependencies: `rand`, `crossbeam`
+- [x] Write unit tests for price/volume generation
 
 ### Testing:
-- [ ] Run server, verify quotes generate continuously
-- [ ] Check price changes are within ±2% range
-- [ ] Verify volume ranges (popular: 1000-6000, others: 100-1100)
-- [ ] Log generated quotes to console (temporary debug)
+- [x] Run server, verify quotes generate continuously
+- [x] Check price changes are within ±2% range
+- [x] Verify volume ranges (popular: 1000-6000, others: 100-1100)
+- [x] Log generated quotes to console (temporary debug)
 
 ---
 
@@ -291,6 +291,13 @@
 - Duration: 35 minutes
 - Challenges: Adjusted to workspace dependency updates
 - Next: Iteration 2 – Quote Generator
+
+---
+
+### [2025-11-11] - Iteration 2 Completed
+- Duration: 50 minutes
+- Challenges: Reworking borrow semantics for ticker iteration
+- Next: Iteration 3 – TCP Server
 
 ---
 
