@@ -398,6 +398,7 @@ dependencies = [
  "log",
  "quote_common",
  "rand",
+ "serde_json",
 ]
 
 [[package]]
