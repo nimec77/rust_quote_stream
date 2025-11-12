@@ -7,9 +7,9 @@
 | 0️⃣ | Project Setup | ✅ Completed | 100% |
 | 1️⃣ | Common Library | ✅ Completed | 100% |
 | 2️⃣ | Quote Generator | ✅ Completed | 100% |
-| 3️⃣ | TCP Server | ⏳ Pending | 0% |
-| 4️⃣ | UDP Streaming | ⏳ Pending | 0% |
-| 5️⃣ | Keep-Alive Mechanism | ⏳ Pending | 0% |
+| 3️⃣ | TCP Server | ✅ Completed | 100% |
+| 4️⃣ | UDP Streaming | ✅ Completed | 100% |
+| 5️⃣ | Keep-Alive Mechanism | ✅ Completed | 100% |
 | 6️⃣ | Basic Client | ⏳ Pending | 0% |
 | 7️⃣ | Client Ping Thread | ⏳ Pending | 0% |
 | 8️⃣ | Configuration & Logging | ⏳ Pending | 0% |
@@ -89,20 +89,20 @@
 **Goal:** Accept client connections and parse STREAM commands
 
 ### Tasks:
-- [ ] Create `tcp_handler.rs` in `quote_server`
-- [ ] Implement TCP listener on configured address
-- [ ] Accept incoming connections in loop
-- [ ] Parse STREAM command format
-- [ ] Validate UDP address and ticker list
-- [ ] Respond with `OK` or `ERR <message>`
-- [ ] Write unit tests for command parsing
+- [x] Create `tcp_handler.rs` in `quote_server`
+- [x] Implement TCP listener on configured address
+- [x] Accept incoming connections in loop
+- [x] Parse STREAM command format
+- [x] Validate UDP address and ticker list
+- [x] Respond with `OK` or `ERR <message>`
+- [x] Write unit tests for command parsing
 
 ### Testing:
-- [ ] Start server, connect with `telnet` or `nc`
-- [ ] Send valid STREAM command, verify `OK` response
-- [ ] Send invalid commands, verify `ERR` responses
-- [ ] Test malformed UDP addresses
-- [ ] Test empty ticker lists
+- [x] Start server, connect with `telnet` or `nc`
+- [x] Send valid STREAM command, verify `OK` response
+- [x] Send invalid commands, verify `ERR` responses
+- [x] Test malformed UDP addresses
+- [x] Test empty ticker lists
 
 ---
 
@@ -111,21 +111,21 @@
 **Goal:** Stream filtered quotes to clients via UDP
 
 ### Tasks:
-- [ ] Create `udp_streamer.rs` in `quote_server`
-- [ ] Spawn client thread on valid STREAM command
-- [ ] Subscribe client thread to MPMC channel
-- [ ] Filter quotes by client's ticker list
-- [ ] Serialize quotes to JSON
-- [ ] Send UDP packets to client address
-- [ ] Handle UDP send errors gracefully
-- [ ] Write tests for filtering logic
+- [x] Create `udp_streamer.rs` in `quote_server`
+- [x] Spawn client thread on valid STREAM command
+- [x] Subscribe client thread to MPMC channel
+- [x] Filter quotes by client's ticker list
+- [x] Serialize quotes to JSON
+- [x] Send UDP packets to client address
+- [x] Handle UDP send errors gracefully
+- [x] Write tests for filtering logic
 
 ### Testing:
-- [ ] Start server, send STREAM command
-- [ ] Use `nc -u -l <port>` to listen for UDP packets
-- [ ] Verify only requested tickers are received
-- [ ] Verify JSON format matches `StockQuote` structure
-- [ ] Test with multiple simultaneous clients
+- [x] Start server, send STREAM command
+- [x] Use `nc -u -l <port>` to listen for UDP packets
+- [x] Verify only requested tickers are received
+- [x] Verify JSON format matches `StockQuote` structure
+- [x] Test with multiple simultaneous clients
 
 ---
 
@@ -134,20 +134,20 @@
 **Goal:** Detect disconnected clients and cleanup resources
 
 ### Tasks:
-- [ ] Add PING monitoring to client thread
-- [ ] Create UDP socket for receiving PINGs
-- [ ] Implement 5-second timeout logic
-- [ ] Terminate thread on timeout
-- [ ] Log client connection/disconnection events
-- [ ] Add `log` and `env_logger` dependencies
-- [ ] Write tests for timeout detection
+- [x] Add PING monitoring to client thread
+- [x] Create UDP socket for receiving PINGs
+- [x] Implement 5-second timeout logic
+- [x] Terminate thread on timeout
+- [x] Log client connection/disconnection events
+- [x] Add `log` and `env_logger` dependencies
+- [x] Write tests for timeout detection
 
 ### Testing:
-- [ ] Connect client, stop sending PINGs
-- [ ] Verify server detects timeout after 5 seconds
-- [ ] Verify thread terminates and resources freed
-- [ ] Check server logs for disconnect events
-- [ ] Verify other clients unaffected by timeout
+- [x] Connect client, stop sending PINGs
+- [x] Verify server detects timeout after 5 seconds
+- [x] Verify thread terminates and resources freed
+- [x] Check server logs for disconnect events
+- [x] Verify other clients unaffected by timeout
 
 ---
 
@@ -291,6 +291,34 @@
 - Duration: 35 minutes
 - Challenges: Adjusted to workspace dependency updates
 - Next: Iteration 2 – Quote Generator
+
+---
+
+### [2025-11-11] - Iteration 2 Completed
+- Duration: 50 minutes
+- Challenges: Reworking borrow semantics for ticker iteration
+- Next: Iteration 3 – TCP Server
+
+---
+
+### [2025-11-12] - Iteration 3 Completed
+- Duration: 45 minutes
+- Challenges: Coordinating command parsing with graceful shutdown and logging
+- Next: Iteration 4 – UDP Streaming
+
+---
+
+### [2025-11-12] - Iteration 4 Completed
+- Duration: 80 minutes
+- Challenges: Balancing dispatcher for client fan-out and error handling
+- Next: Iteration 5 – Keep-Alive Mechanism
+
+---
+
+### [2025-11-12] - Iteration 5 Completed
+- Duration: 70 minutes
+- Challenges: Synchronizing keep-alive state across threads
+- Next: Iteration 6 – Basic Client
 
 ---
 
