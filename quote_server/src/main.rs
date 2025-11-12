@@ -8,7 +8,9 @@ use std::time::Duration;
 use crossbeam::channel;
 use log::{error, info};
 
-use quote_common::{DEFAULT_QUOTE_RATE_MS, POPULAR_TICKERS, QuoteError};
+use quote_common::{
+    DEFAULT_KEEPALIVE_TIMEOUT_SECS, DEFAULT_QUOTE_RATE_MS, POPULAR_TICKERS, QuoteError,
+};
 
 use generator::start_generator;
 use tcp_handler::{StreamRequest, start_tcp_server};
@@ -32,7 +34,8 @@ fn run() -> Result<(), QuoteError> {
     let (quote_rx, generator_handle) =
         start_generator(tickers, initial_prices, Some(DEFAULT_QUOTE_RATE_MS))?;
 
-    let (dispatcher_tx, dispatcher_handle) = start_udp_streamer(quote_rx)?;
+    let keepalive_timeout = Duration::from_secs(DEFAULT_KEEPALIVE_TIMEOUT_SECS);
+    let (dispatcher_tx, dispatcher_handle) = start_udp_streamer(quote_rx, keepalive_timeout)?;
 
     let (request_tx, request_rx) = channel::unbounded::<StreamRequest>();
     let (shutdown_tx, tcp_handle) = start_tcp_server("127.0.0.1:8080", request_tx.clone())?;
