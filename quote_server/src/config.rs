@@ -219,7 +219,7 @@ mod tests {
         let mut file = fs::File::create(&path).expect("create temp file");
         writeln!(file, "AAPL").unwrap();
         writeln!(file, "  MSFT ").unwrap();
-        writeln!(file).unwrap();
+        writeln!(file, "\n").unwrap();
         writeln!(file, "tsla").unwrap();
         drop(file);
 

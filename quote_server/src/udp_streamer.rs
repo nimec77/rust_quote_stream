@@ -27,18 +27,20 @@ struct ClientChannels {
     handle: thread::JoinHandle<()>,
     last_ping: Arc<Mutex<Instant>>,
     timeout: Duration,
+    udp_addr: std::net::SocketAddr,
 }
 
 /// Start a UDP dispatcher that distributes quotes to client threads.
 pub fn start_udp_streamer(
     quote_rx: Receiver<StockQuote>,
     keepalive_timeout: Duration,
+    server_udp_addr: std::net::SocketAddr,
 ) -> Result<(Sender<UdpCommand>, thread::JoinHandle<()>), QuoteError> {
     let (command_tx, command_rx) = channel::unbounded::<UdpCommand>();
 
     let handle = thread::Builder::new()
         .name("udp-dispatcher".to_string())
-        .spawn(move || dispatcher_loop(quote_rx, command_rx, keepalive_timeout))
+        .spawn(move || dispatcher_loop(quote_rx, command_rx, keepalive_timeout, server_udp_addr))
         .map_err(QuoteError::from)?;
 
     Ok((command_tx, handle))
@@ -48,15 +50,32 @@ fn dispatcher_loop(
     quote_rx: Receiver<StockQuote>,
     command_rx: Receiver<UdpCommand>,
     keepalive_timeout: Duration,
+    server_udp_addr: std::net::SocketAddr,
 ) {
     let mut clients: HashMap<usize, ClientChannels> = HashMap::new();
     let mut next_id: usize = 0;
+
+    // Create shared PING socket bound to server's UDP port
+    let ping_socket = match UdpSocket::bind(server_udp_addr) {
+        Ok(socket) => {
+            if let Err(err) = socket.set_nonblocking(true) {
+                warn!("Failed to set PING socket non-blocking: {}", err);
+            }
+            socket
+        }
+        Err(err) => {
+            warn!("Failed to bind PING socket on {}: {}", server_udp_addr, err);
+            return;
+        }
+    };
+
+    let mut ping_buffer = [0u8; 16];
 
     loop {
         crossbeam::channel::select! {
             recv(command_rx) -> command => match command {
                 Ok(UdpCommand::AddClient(request)) => {
-                    if let Err(err) = register_client(&mut clients, &mut next_id, request, keepalive_timeout) {
+                    if let Err(err) = register_client(&mut clients, &mut next_id, request, keepalive_timeout, server_udp_addr) {
                         warn!("Failed to register UDP client: {err}");
                     }
                 }
@@ -67,6 +86,30 @@ fn dispatcher_loop(
                     deliver_quote(&mut clients, &quote);
                 }
                 Err(_) => break,
+            }
+        }
+
+        // Check for PINGs on shared socket
+        match ping_socket.recv_from(&mut ping_buffer) {
+            Ok((size, from_addr)) => {
+                if &ping_buffer[..size] == b"PING" {
+                    // Find client by UDP address and update last_ping
+                    for client in clients.values() {
+                        if client.udp_addr == from_addr {
+                            let now = Instant::now();
+                            if let Ok(mut guard) = client.last_ping.lock() {
+                                *guard = now;
+                            }
+                            debug!("PING received from {}", from_addr);
+                            break;
+                        }
+                    }
+                }
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::WouldBlock
+                || err.kind() == std::io::ErrorKind::TimedOut => {}
+            Err(err) => {
+                warn!("PING socket recv error: {}", err);
             }
         }
 
@@ -82,6 +125,7 @@ fn register_client(
     next_id: &mut usize,
     request: StreamRequest,
     keepalive_timeout: Duration,
+    server_udp_addr: std::net::SocketAddr,
 ) -> Result<(), QuoteError> {
     let tickers = request.tickers.iter().cloned().collect::<HashSet<_>>();
 
@@ -100,6 +144,7 @@ fn register_client(
                 quote_rx,
                 keepalive_timeout,
                 last_ping_for_thread,
+                server_udp_addr,
             )
         })
         .map_err(QuoteError::from)?;
@@ -112,6 +157,7 @@ fn register_client(
             handle,
             last_ping,
             timeout: keepalive_timeout,
+            udp_addr: request.udp_addr,
         },
     );
 
@@ -150,7 +196,9 @@ fn client_loop(
     quote_rx: Receiver<StockQuote>,
     keepalive_timeout: Duration,
     last_ping: Arc<Mutex<Instant>>,
+    _server_udp_addr: std::net::SocketAddr,
 ) {
+    // Bind to ephemeral port for sending quotes
     let socket = match UdpSocket::bind("0.0.0.0:0") {
         Ok(socket) => socket,
         Err(err) => {
@@ -170,43 +218,14 @@ fn client_loop(
         return;
     }
 
-    if let Err(err) = socket.set_read_timeout(Some(Duration::from_millis(100))) {
-        warn!(
-            "Failed to set UDP read timeout for {}: {}",
-            request.udp_addr, err
-        );
-    }
-
-    let mut buffer = [0u8; 16];
-    let mut last_seen = Instant::now();
-
     loop {
-        match socket.recv(&mut buffer) {
-            Ok(size) => {
-                if &buffer[..size] == b"PING" {
-                    last_seen = Instant::now();
-                    if let Ok(mut guard) = last_ping.lock() {
-                        *guard = last_seen;
-                    }
-                    debug!("PING received from {}", request.udp_addr);
-                } else {
-                    warn!(
-                        "Ignoring unexpected UDP payload from {}: {:?}",
-                        request.udp_addr,
-                        &buffer[..size]
-                    );
-                }
-            }
-            Err(err)
-                if err.kind() == std::io::ErrorKind::WouldBlock
-                    || err.kind() == std::io::ErrorKind::TimedOut => {}
-            Err(err) => {
-                warn!("UDP recv error for {}: {}", request.udp_addr, err);
-                break;
-            }
-        }
+        // Check timeout based on last_ping (updated by dispatcher)
+        let elapsed = last_ping
+            .lock()
+            .map(|instant| instant.elapsed())
+            .unwrap_or_else(|_| Duration::from_secs(keepalive_timeout.as_secs() + 1));
 
-        if last_seen.elapsed() > keepalive_timeout {
+        if elapsed > keepalive_timeout {
             warn!(
                 "Client {} exceeded keepalive timeout of {:?}",
                 request.udp_addr, keepalive_timeout
@@ -276,9 +295,11 @@ mod tests {
     #[test]
     fn test_client_receives_filtered_quotes() {
         let (quote_tx, quote_rx) = channel::unbounded::<StockQuote>();
+        let server_addr: std::net::SocketAddr = "127.0.0.1:0".parse().expect("parse addr");
         let (manager_tx, manager_handle) = start_udp_streamer(
             quote_rx,
             Duration::from_secs(DEFAULT_KEEPALIVE_TIMEOUT_SECS),
+            server_addr,
         )
         .expect("start manager");
 
@@ -328,8 +349,9 @@ mod tests {
     fn test_client_times_out_without_ping() {
         let (quote_tx, quote_rx) = channel::unbounded::<StockQuote>();
         let timeout = Duration::from_millis(50);
+        let server_addr: std::net::SocketAddr = "127.0.0.1:0".parse().expect("parse addr");
         let (manager_tx, manager_handle) =
-            start_udp_streamer(quote_rx, timeout).expect("start manager");
+            start_udp_streamer(quote_rx, timeout, server_addr).expect("start manager");
 
         let listener = UdpSocket::bind("127.0.0.1:0").expect("bind listener");
         listener

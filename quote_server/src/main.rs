@@ -44,31 +44,26 @@ fn run() -> Result<(), QuoteError> {
     )?;
 
     let keepalive_timeout = Duration::from_secs(config.keepalive_timeout_secs);
-    let (dispatcher_tx, dispatcher_handle) = start_udp_streamer(quote_rx, keepalive_timeout)?;
+    let server_tcp_addr: std::net::SocketAddr = config.tcp_addr.parse().map_err(|err| {
+        QuoteError::ConfigError(format!("invalid TCP address '{}': {}", config.tcp_addr, err))
+    })?;
+    let (dispatcher_tx, dispatcher_handle) = start_udp_streamer(quote_rx, keepalive_timeout, server_tcp_addr)?;
 
     let (request_tx, request_rx) = channel::unbounded::<StreamRequest>();
-    let (shutdown_tx, tcp_handle) = start_tcp_server(&config.tcp_addr, request_tx.clone())?;
+    let (_shutdown_tx, tcp_handle) = start_tcp_server(&config.tcp_addr, request_tx.clone())?;
 
-    loop {
-        match request_rx.recv_timeout(Duration::from_secs(1)) {
-            Ok(request) => {
-                log_stream_request(&request);
-                dispatcher_tx
-                    .send(UdpCommand::AddClient(request))
-                    .map_err(|err| {
-                        QuoteError::NetworkError(format!("failed to register UDP client: {err}"))
-                    })?;
-            }
-            Err(channel::RecvTimeoutError::Timeout) => {
-                break;
-            }
-            Err(channel::RecvTimeoutError::Disconnected) => break,
-        }
+    // Process requests continuously until TCP server thread exits
+    // The TCP server thread runs until it receives a shutdown signal
+    while let Ok(request) = request_rx.recv() {
+        log_stream_request(&request);
+        dispatcher_tx
+            .send(UdpCommand::AddClient(request))
+            .map_err(|err| {
+                QuoteError::NetworkError(format!("failed to register UDP client: {err}"))
+            })?;
     }
 
-    shutdown_tx
-        .send(())
-        .map_err(|err| QuoteError::NetworkError(format!("failed to stop TCP server: {err}")))?;
+    // Wait for TCP server thread to finish
     tcp_handle
         .join()
         .map_err(|_| QuoteError::NetworkError("tcp server thread panicked".to_string()))?;
