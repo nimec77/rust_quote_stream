@@ -10,8 +10,8 @@
 | 3️⃣ | TCP Server | ✅ Completed | 100% |
 | 4️⃣ | UDP Streaming | ✅ Completed | 100% |
 | 5️⃣ | Keep-Alive Mechanism | ✅ Completed | 100% |
-| 6️⃣ | Basic Client | ⏳ Pending | 0% |
-| 7️⃣ | Client Ping Thread | ⏳ Pending | 0% |
+| 6️⃣ | Basic Client | ✅ Completed | 100% |
+| 7️⃣ | Client Ping Thread | ✅ Completed | 100% |
 | 8️⃣ | Configuration & Logging | ⏳ Pending | 0% |
 | 9️⃣ | Testing & Polish | ⏳ Pending | 0% |
 
@@ -156,16 +156,16 @@
 **Goal:** Connect to server and receive quotes
 
 ### Tasks:
-- [ ] Create `cli.rs` with clap argument parsing
-- [ ] Create `tcp_client.rs` for server connection
-- [ ] Create `udp_receiver.rs` for quote reception
-- [ ] Parse tickers from file
-- [ ] Connect to TCP server
-- [ ] Send STREAM command with local UDP address
-- [ ] Bind UDP socket and receive quotes
-- [ ] Deserialize and log received quotes
-- [ ] Add dependencies: `clap`
-- [ ] Handle Ctrl+C for graceful shutdown
+- [x] Create `cli.rs` with clap argument parsing
+- [x] Create `tcp_client.rs` for server connection
+- [x] Create `udp_receiver.rs` for quote reception
+- [x] Parse tickers from file
+- [x] Connect to TCP server
+- [x] Send STREAM command with local UDP address
+- [x] Bind UDP socket and receive quotes
+- [x] Deserialize and log received quotes
+- [x] Add dependencies: `clap`
+- [x] Handle Ctrl+C for graceful shutdown
 
 ### Testing:
 - [ ] Run server and client together
@@ -181,12 +181,12 @@
 **Goal:** Send keep-alive PINGs to server
 
 ### Tasks:
-- [ ] Create ping thread in client
-- [ ] Send "PING" via UDP every 2 seconds
-- [ ] Use same UDP socket as quote receiver
-- [ ] Handle send errors gracefully
-- [ ] Ensure thread terminates on shutdown
-- [ ] Write tests for ping timing
+- [x] Create ping thread in client
+- [x] Send "PING" via UDP every 2 seconds
+- [x] Use same UDP socket as quote receiver
+- [x] Handle send errors gracefully
+- [x] Ensure thread terminates on shutdown
+- [x] Write tests for ping timing
 
 ### Testing:
 - [ ] Run client, verify server receives PINGs
@@ -319,6 +319,20 @@
 - Duration: 70 minutes
 - Challenges: Synchronizing keep-alive state across threads
 - Next: Iteration 6 – Basic Client
+
+---
+
+### [2025-11-12] - Iteration 6 Completed
+- Duration: 60 minutes
+- Challenges: Coordinating UDP socket cloning for ping thread, graceful shutdown handling
+- Next: Iteration 7 – Client Ping Thread
+
+---
+
+### [2025-11-12] - Iteration 7 Completed
+- Duration: Integrated with Iteration 6
+- Challenges: Ping thread was implemented alongside basic client functionality
+- Next: Iteration 8 – Configuration & Logging
 
 ---
 
