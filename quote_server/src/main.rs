@@ -1,17 +1,17 @@
+mod config;
 mod generator;
 mod tcp_handler;
 mod udp_streamer;
 
-use std::collections::HashMap;
+use std::path::Path;
 use std::time::Duration;
 
 use crossbeam::channel;
 use log::{error, info};
 
-use quote_common::{
-    DEFAULT_KEEPALIVE_TIMEOUT_SECS, DEFAULT_QUOTE_RATE_MS, POPULAR_TICKERS, QuoteError,
-};
+use quote_common::QuoteError;
 
+use config::{load_config, load_tickers};
 use generator::start_generator;
 use tcp_handler::{StreamRequest, start_tcp_server};
 use udp_streamer::{UdpCommand, start_udp_streamer};
@@ -25,20 +25,29 @@ fn main() {
 }
 
 fn run() -> Result<(), QuoteError> {
-    let tickers = POPULAR_TICKERS
-        .iter()
-        .map(|ticker| ticker.to_string())
-        .collect::<Vec<_>>();
-    let initial_prices = HashMap::new();
+    let config = load_config(Path::new("server_config.toml"))?;
 
-    let (quote_rx, generator_handle) =
-        start_generator(tickers, initial_prices, Some(DEFAULT_QUOTE_RATE_MS))?;
+    info!("Loaded configuration:");
+    info!("  TCP address: {}", config.tcp_addr);
+    info!("  Tickers file: {}", config.tickers_file);
+    info!("  Quote rate: {}ms", config.quote_rate_ms);
+    info!("  Keepalive timeout: {}s", config.keepalive_timeout_secs);
+    info!("  Initial prices: {} tickers", config.initial_prices.len());
 
-    let keepalive_timeout = Duration::from_secs(DEFAULT_KEEPALIVE_TIMEOUT_SECS);
+    let tickers = load_tickers(Path::new(&config.tickers_file))?;
+    info!("Loaded {} tickers from file", tickers.len());
+
+    let (quote_rx, generator_handle) = start_generator(
+        tickers,
+        config.initial_prices.clone(),
+        Some(config.quote_rate_ms),
+    )?;
+
+    let keepalive_timeout = Duration::from_secs(config.keepalive_timeout_secs);
     let (dispatcher_tx, dispatcher_handle) = start_udp_streamer(quote_rx, keepalive_timeout)?;
 
     let (request_tx, request_rx) = channel::unbounded::<StreamRequest>();
-    let (shutdown_tx, tcp_handle) = start_tcp_server("127.0.0.1:8080", request_tx.clone())?;
+    let (shutdown_tx, tcp_handle) = start_tcp_server(&config.tcp_addr, request_tx.clone())?;
 
     loop {
         match request_rx.recv_timeout(Duration::from_secs(1)) {
