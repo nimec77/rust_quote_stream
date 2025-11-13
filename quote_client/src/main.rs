@@ -15,7 +15,7 @@ mod udp_receiver;
 
 use cli::{load_tickers, parse};
 use tcp_client::send_stream_command;
-use udp_receiver::spawn_listener;
+use udp_receiver::{spawn_listener, spawn_ping_thread};
 
 fn main() {
     env_logger::init();
@@ -52,7 +52,14 @@ fn run() -> Result<(), QuoteError> {
     send_stream_command(&args.server_addr, &advertised_udp_addr, &tickers)?;
 
     let shutdown = Arc::new(AtomicBool::new(false));
+
+    // Clone socket for ping thread before moving original to listener
+    let ping_socket = socket
+        .try_clone()
+        .map_err(|err| QuoteError::NetworkError(format!("failed to clone UDP socket: {err}")))?;
+
     let listener_handle = spawn_listener(socket, Arc::clone(&shutdown))?;
+    let ping_handle = spawn_ping_thread(ping_socket, server_addr, Arc::clone(&shutdown))?;
 
     let (signal_tx, signal_rx) = std::sync::mpsc::channel::<()>();
     ctrlc::set_handler(move || {
@@ -65,12 +72,15 @@ fn run() -> Result<(), QuoteError> {
 
     shutdown.store(true, Ordering::SeqCst);
 
-    // Allow listener to notice shutdown signal.
+    // Allow threads to notice shutdown signal.
     std::thread::sleep(Duration::from_millis(200));
 
     listener_handle
         .join()
         .map_err(|_| QuoteError::NetworkError("UDP listener thread panicked".to_string()))?;
+    ping_handle
+        .join()
+        .map_err(|_| QuoteError::NetworkError("ping thread panicked".to_string()))?;
 
     info!("Client shut down cleanly.");
 

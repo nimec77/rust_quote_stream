@@ -84,7 +84,10 @@ mod tests {
     #[test]
     fn test_load_tickers_empty_file() {
         let path = unique_temp_path();
-        fs::File::create(&path).expect("create temp file");
+        {
+            let _file = fs::File::create(&path).expect("create temp file");
+            // File is empty, will be closed when dropped
+        }
 
         let err = load_tickers(&path).expect_err("should fail");
         assert!(matches!(err, QuoteError::ConfigError(_)));
