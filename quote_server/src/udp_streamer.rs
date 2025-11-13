@@ -15,7 +15,9 @@ use crate::tcp_handler::StreamRequest;
 /// Commands sent to the UDP dispatcher.
 #[derive(Debug)]
 pub enum UdpCommand {
+    /// Add a new client to receive filtered quotes.
     AddClient(StreamRequest),
+    /// Shutdown the dispatcher and terminate all client threads.
     Shutdown,
 }
 

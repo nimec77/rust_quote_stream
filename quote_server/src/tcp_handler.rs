@@ -12,7 +12,9 @@ use quote_common::QuoteError;
 /// Parsed representation of a valid STREAM command.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StreamRequest {
+    /// UDP address where the client will receive quotes.
     pub udp_addr: SocketAddr,
+    /// List of ticker symbols requested by the client (uppercase).
     pub tickers: Vec<String>,
 }
 

@@ -7,10 +7,15 @@ use quote_common::{DEFAULT_KEEPALIVE_TIMEOUT_SECS, DEFAULT_QUOTE_RATE_MS, QuoteE
 /// Server configuration loaded from TOML file.
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
+    /// TCP address to bind the server listener (e.g., "127.0.0.1:8080").
     pub tcp_addr: String,
+    /// Path to file containing ticker symbols (one per line).
     pub tickers_file: String,
+    /// Quote generation interval in milliseconds.
     pub quote_rate_ms: u64,
+    /// Keepalive timeout in seconds before disconnecting inactive clients.
     pub keepalive_timeout_secs: u64,
+    /// Initial prices for tickers, keyed by uppercase ticker symbol.
     pub initial_prices: HashMap<String, f64>,
 }
 

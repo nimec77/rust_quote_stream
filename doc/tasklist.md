@@ -12,8 +12,8 @@
 | 5️⃣ | Keep-Alive Mechanism | ✅ Completed | 100% |
 | 6️⃣ | Basic Client | ✅ Completed | 100% |
 | 7️⃣ | Client Ping Thread | ✅ Completed | 100% |
-| 8️⃣ | Configuration & Logging | ⏳ Pending | 0% |
-| 9️⃣ | Testing & Polish | ⏳ Pending | 0% |
+| 8️⃣ | Configuration & Logging | ✅ Completed | 100% |
+| 9️⃣ | Testing & Polish | ✅ Completed | 100% |
 
 **Legend:**
 - ⏳ Pending
@@ -202,13 +202,13 @@
 **Goal:** Load settings from files and implement proper logging
 
 ### Tasks:
-- [ ] Implement TOML config parsing in server
-- [ ] Load tickers from file with error handling
-- [ ] Load initial prices from config
-- [ ] Replace all debug prints with log macros
-- [ ] Initialize `env_logger` in both binaries
-- [ ] Add appropriate log levels (info/warn/error/debug)
-- [ ] Add `toml` dependency to server
+- [x] Implement TOML config parsing in server
+- [x] Load tickers from file with error handling
+- [x] Load initial prices from config
+- [x] Replace all debug prints with log macros
+- [x] Initialize `env_logger` in both binaries
+- [x] Add appropriate log levels (info/warn/error/debug)
+- [x] Add `toml` dependency to server
 
 ### Testing:
 - [ ] Test with missing config file (should error)
@@ -224,16 +224,16 @@
 **Goal:** Complete testing and code quality improvements
 
 ### Tasks:
-- [ ] Write unit tests for all main functions
-- [ ] Test error handling paths
-- [ ] Test edge cases (empty files, malformed data)
-- [ ] Run `cargo clippy` and fix all warnings
-- [ ] Run `cargo fmt` on all code
-- [ ] Review all error messages for clarity
-- [ ] Add doc comments to public APIs
-- [ ] Update README with complete usage instructions
-- [ ] Create example `tickers.txt` and `server_config.toml`
-- [ ] Test multi-client scenarios
+- [x] Write unit tests for all main functions
+- [x] Test error handling paths
+- [x] Test edge cases (empty files, malformed data)
+- [x] Run `cargo clippy` and fix all warnings
+- [x] Run `cargo fmt` on all code
+- [x] Review all error messages for clarity
+- [x] Add doc comments to public APIs
+- [x] Update README with complete usage instructions
+- [x] Create example `tickers.txt` and `server_config.toml`
+- [x] Test multi-client scenarios
 
 ### Testing:
 - [ ] Run full integration test: server + 3 clients
@@ -333,6 +333,20 @@
 - Duration: Integrated with Iteration 6
 - Challenges: Ping thread was implemented alongside basic client functionality
 - Next: Iteration 8 – Configuration & Logging
+
+---
+
+### [2025-11-12] - Iteration 8 Completed
+- Duration: 60 minutes
+- Challenges: Adapting to toml crate 0.9.8 API (using toml::Table instead of toml::Value)
+- Next: Iteration 9 – Testing & Polish
+
+---
+
+### [2025-11-12] - Iteration 9 Completed
+- Duration: 45 minutes
+- Challenges: None; comprehensive documentation and quality checks
+- Next: Project complete! All iterations finished.
 
 ---
 
