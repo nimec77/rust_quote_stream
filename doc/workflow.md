@@ -250,6 +250,8 @@ Before marking iteration as complete:
 - [ ] No compiler warnings
 - [ ] No clippy warnings
 - [ ] Code formatted with rustfmt
+- [ ] Error handling includes location tracking
+- [ ] Error logs include file, line, and backtrace information
 - [ ] User has confirmed functionality
 - [ ] `tasklist.md` updated
 

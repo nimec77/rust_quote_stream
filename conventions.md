@@ -25,17 +25,50 @@ This document contains **actionable coding rules** for implementation. Follow th
 - ❌ **NEVER** use `.unwrap()` or `.expect()` in production code paths
 - ✅ Use `.unwrap()` only in tests or after explicit checks
 - ✅ Provide context in error messages
+- ✅ **Capture location and backtrace** when creating errors
+- ✅ Use error creation macros that automatically capture `file!()`, `line!()`, `column!()`
+- ✅ Include backtrace information in error logs for debugging
+
+### Error Location Tracking:
+
+Errors should capture where they occurred for easier debugging. Use helper macros:
+
+```rust
+// Error creation with location
+let err = quote_error!(IoError(io_err), "Failed to read config");
+
+// Error logging with location (custom macro)
+log_error!(err, "Configuration loading failed");
+
+// This produces output like:
+// [ERROR] Configuration loading failed
+//   Location: src/config.rs:42:5
+//   Error: Failed to read config: No such file or directory
+//   Backtrace:
+//     0: quote_server::config::load_config
+//     1: quote_server::main
+//     ...
+```
 
 ### Example:
 ```rust
-// Good
+// Good - with location tracking
 fn read_tickers(path: &str) -> Result<Vec<String>, QuoteError> {
     let content = fs::read_to_string(path)
-        .map_err(|e| QuoteError::IoError(e))?;
+        .map_err(|e| quote_error!(IoError(e), "Failed to read tickers file: {}", path))?;
     Ok(content.lines()
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .collect())
+}
+
+// When logging errors, use log_error! macro
+match read_tickers("tickers.txt") {
+    Ok(tickers) => info!("Loaded {} tickers", tickers.len()),
+    Err(e) => {
+        log_error!(e, "Failed to load tickers");
+        return Err(e);
+    }
 }
 
 // Bad - unwrap in production
@@ -44,6 +77,13 @@ fn read_tickers(path: &str) -> Vec<String> {
         .lines().collect()
 }
 ```
+
+### Backtrace Usage:
+
+- Enable with `RUST_BACKTRACE=1` environment variable
+- Backtraces are automatically captured in `QuoteError`
+- Use `RUST_BACKTRACE=full` for complete trace with all frames
+- In production logs, include abbreviated backtrace (top 5-10 frames)
 
 ---
 
@@ -130,19 +170,46 @@ thread::spawn(|| {
 ### Rules:
 - Initialize logger once in `main()`: `env_logger::init();`
 - Use appropriate levels:
-  - `error!()` - Critical failures
+  - `error!()` - Critical failures (use `log_error!()` macro for errors with backtraces)
   - `warn!()` - Recoverable issues
   - `info!()` - Important events
   - `debug!()` - Detailed diagnostics
 - Include context in log messages
+- **Include location information** in error logs (file, line, function)
+- **Include backtrace** for critical errors
 - ❌ **NO `println!()` or `print!()`** - use logging only
 
 ### Example:
 ```rust
 info!("Server started on {}", addr);
 warn!("Client timeout: {}", client_id);
-error!("Failed to bind socket: {}", err);
+
+// For errors, use log_error! macro which includes location and backtrace
+if let Err(e) = bind_socket() {
+    log_error!(e, "Failed to bind socket");
+}
+
 debug!("Generated quote: {:?}", quote);
+```
+
+### Error Logging Format:
+
+When logging errors, include:
+1. Error message
+2. File location (file:line:column)
+3. Context/operation that failed
+4. Stack trace (top frames)
+
+```rust
+// log_error! macro produces:
+// [ERROR] Failed to bind socket
+//   at src/main.rs:42:9
+//   in function: quote_server::main
+//   Error: Address already in use (os error 48)
+//   Stack trace:
+//     0: std::net::TcpListener::bind
+//     1: quote_server::main
+//     ...
 ```
 
 ---
@@ -298,6 +365,8 @@ Before committing code, verify:
 - [ ] Tests pass: `cargo test`
 - [ ] No `unwrap()` in production paths
 - [ ] Proper error handling with `Result<T, E>`
+- [ ] Errors created with location tracking (`quote_error!` macro)
+- [ ] Error logs include location and backtrace (`log_error!` macro)
 - [ ] Logging instead of `println!()`
 - [ ] Constants for magic numbers
 - [ ] Threads properly joined
@@ -347,12 +416,22 @@ Before committing code, verify:
 ## Quick Reference
 
 ```rust
-// Error handling
-fn my_func() -> Result<T, QuoteError> { ... }
+// Error handling with location tracking
+fn my_func() -> Result<T, QuoteError> {
+    something().map_err(|e| quote_error!(IoError(e), "Operation failed"))?;
+    Ok(result)
+}
 
-// Logging
+// Error logging with location and backtrace
+match risky_operation() {
+    Ok(val) => info!("Success: {}", val),
+    Err(e) => log_error!(e, "Operation failed"),
+}
+
+// Regular logging
 env_logger::init();  // in main()
 info!("Message: {}", value);
+warn!("Warning: {}", issue);
 
 // Threading
 let handle = thread::spawn(|| { ... });

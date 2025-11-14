@@ -14,6 +14,7 @@
 | 7️⃣ | Client Ping Thread | ✅ Completed | 100% |
 | 8️⃣ | Configuration & Logging | ✅ Completed | 100% |
 | 9️⃣ | Testing & Polish | ✅ Completed | 100% |
+| 🔟 | Error Location Tracking | ⏳ Pending | 0% |
 
 **Legend:**
 - ⏳ Pending
@@ -242,6 +243,33 @@
 - [ ] Verify all checklist items from `idea.md`
 - [ ] Performance check: handle 100+ quotes/second
 - [ ] Memory check: run for extended period
+
+---
+
+---
+
+## Iteration 🔟: Error Location Tracking & Stack Traces
+
+**Goal:** Add location tracking and stack trace information to error logging
+
+### Tasks:
+- [ ] Add `backtrace` feature to `quote_common`
+- [ ] Enhance `QuoteError` enum with location and backtrace fields
+- [ ] Create error creation macros that capture `file!()`, `line!()`, `column!()`
+- [ ] Update all error creation sites to use new macros
+- [ ] Add backtrace printing to error log statements
+- [ ] Create custom `log_error!` macro that includes location
+- [ ] Update all `error!()` calls to use `log_error!()`
+- [ ] Write tests for error location capture
+- [ ] Update documentation with new error handling approach
+
+### Testing:
+- [ ] Verify error logs include file, line, and column information
+- [ ] Verify backtraces are captured when errors occur
+- [ ] Test that backtrace output is human-readable
+- [ ] Verify no performance regression in happy path
+- [ ] Test error propagation chain preserves location info
+- [ ] Check that RUST_BACKTRACE=1 provides full traces
 
 ---
 

@@ -190,15 +190,53 @@ pub struct StreamRequest {
 ### Error Handling:
 
 ```rust
+use std::backtrace::Backtrace;
+
+#[derive(Debug)]
+pub struct ErrorLocation {
+    pub file: &'static str,
+    pub line: u32,
+    pub column: u32,
+}
+
 #[derive(Debug)]
 pub enum QuoteError {
-    IoError(std::io::Error),
-    ParseError(String),
-    NetworkError(String),
-    SerializationError(String),
-    InvalidCommand(String),
-    ConfigError(String),
+    IoError {
+        source: std::io::Error,
+        context: String,
+        location: ErrorLocation,
+        backtrace: Backtrace,
+    },
+    ParseError {
+        message: String,
+        location: ErrorLocation,
+        backtrace: Backtrace,
+    },
+    NetworkError {
+        message: String,
+        location: ErrorLocation,
+        backtrace: Backtrace,
+    },
+    SerializationError {
+        message: String,
+        location: ErrorLocation,
+        backtrace: Backtrace,
+    },
+    InvalidCommand {
+        message: String,
+        location: ErrorLocation,
+        backtrace: Backtrace,
+    },
+    ConfigError {
+        message: String,
+        location: ErrorLocation,
+        backtrace: Backtrace,
+    },
 }
+
+// Helper macros for creating errors with automatic location capture
+// quote_error!(IoError(io_err), "Context message")
+// log_error!(error_value, "High-level operation description")
 ```
 
 ### Constants:
@@ -361,10 +399,11 @@ MSFT
 
 ### Log Levels:
 
-**ERROR:** Critical issues
+**ERROR:** Critical issues (with location and backtrace)
 - Failed to load config
 - Network errors that crash threads
 - Unable to bind sockets
+- Include: file location, line number, error context, backtrace
 
 **WARN:** Recoverable issues
 - Client timeout (no PING received)
@@ -390,7 +429,12 @@ MSFT
 info!("Server started on {}", config.tcp_addr);
 info!("Client connected from {}", addr);
 warn!("Client {} timed out (no PING)", client_id);
-error!("Failed to send UDP packet: {}", err);
+
+// Use log_error! for errors with location and backtrace
+if let Err(e) = send_udp_packet() {
+    log_error!(e, "Failed to send UDP packet");
+}
+
 debug!("Generated quote: {:?}", quote);
 ```
 
@@ -398,7 +442,12 @@ debug!("Generated quote: {:?}", quote);
 ```rust
 info!("Connecting to server at {}", server_addr);
 info!("Received quote: [{}] ${}", quote.ticker, quote.price);
-error!("Failed to send PING: {}", err);
+
+// Use log_error! for errors with location and backtrace
+if let Err(e) = send_ping() {
+    log_error!(e, "Failed to send PING");
+}
+
 debug!("UDP packet received: {} bytes", size);
 ```
 
@@ -420,6 +469,19 @@ RUST_LOG=error cargo run
 ```
 [2025-11-10T14:23:45Z INFO  quote_server] Server started on 127.0.0.1:8080
 [2025-11-10T14:23:46Z INFO  quote_server] Client connected from 127.0.0.1:54321
+```
+
+**Error Format (with location and backtrace):**
+```
+[2025-11-10T14:23:47Z ERROR quote_server] Failed to load configuration
+  at src/config.rs:42:9
+  Error: No such file or directory (os error 2)
+  Stack trace:
+    0: quote_server::config::load_config
+       at src/config.rs:42
+    1: quote_server::main
+       at src/main.rs:15
+    ...
 ```
 
 ---
