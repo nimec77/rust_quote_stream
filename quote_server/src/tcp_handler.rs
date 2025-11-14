@@ -23,18 +23,19 @@ pub fn parse_stream_command(command: &str) -> Result<StreamRequest, QuoteError> 
     let trimmed = command.trim();
     let rest = trimmed
         .strip_prefix("STREAM ")
-        .ok_or_else(|| QuoteError::InvalidCommand("missing STREAM prefix".to_string()))?;
+        .ok_or_else(|| quote_common::quote_error!(InvalidCommand, "missing STREAM prefix"))?;
 
     let (addr_part, tickers_part) = rest.split_once(' ').ok_or_else(|| {
-        QuoteError::InvalidCommand("STREAM command missing ticker list".to_string())
+        quote_common::quote_error!(InvalidCommand, "STREAM command missing ticker list")
     })?;
 
     let udp_addr = addr_part.strip_prefix("udp://").ok_or_else(|| {
-        QuoteError::InvalidCommand("STREAM command missing udp:// prefix".to_string())
+        quote_common::quote_error!(InvalidCommand, "STREAM command missing udp:// prefix")
     })?;
 
-    let socket_addr = SocketAddr::from_str(udp_addr)
-        .map_err(|_| QuoteError::InvalidCommand(format!("invalid UDP address: {udp_addr}")))?;
+    let socket_addr = SocketAddr::from_str(udp_addr).map_err(|_| {
+        quote_common::quote_error!(InvalidCommand, "invalid UDP address: {}", udp_addr)
+    })?;
 
     let tickers = tickers_part
         .split(',')
@@ -43,8 +44,9 @@ pub fn parse_stream_command(command: &str) -> Result<StreamRequest, QuoteError> 
         .collect::<Vec<_>>();
 
     if tickers.is_empty() {
-        return Err(QuoteError::InvalidCommand(
-            "ticker list cannot be empty".to_string(),
+        return Err(quote_common::quote_error!(
+            InvalidCommand,
+            "ticker list cannot be empty"
         ));
     }
 
@@ -53,9 +55,11 @@ pub fn parse_stream_command(command: &str) -> Result<StreamRequest, QuoteError> 
             .chars()
             .all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit())
         {
-            return Err(QuoteError::InvalidCommand(format!(
-                "invalid ticker symbol: {ticker}"
-            )));
+            return Err(quote_common::quote_error!(
+                InvalidCommand,
+                "invalid ticker symbol: {}",
+                ticker
+            ));
         }
     }
 
@@ -74,9 +78,14 @@ fn handle_connection(
         .map(|addr| addr.to_string())
         .unwrap_or_else(|_| "<unknown>".to_string());
 
-    let mut reader = BufReader::new(stream.try_clone()?);
+    let mut reader =
+        BufReader::new(stream.try_clone().map_err(|err| {
+            quote_common::quote_error!(IoError, err, "failed to clone TCP stream")
+        })?);
     let mut line = String::new();
-    let bytes_read = reader.read_line(&mut line).map_err(QuoteError::from)?;
+    let bytes_read = reader.read_line(&mut line).map_err(|err| {
+        quote_common::quote_error!(IoError, err, "failed to read line from TCP stream")
+    })?;
 
     if bytes_read == 0 {
         return Ok(());
@@ -89,13 +98,17 @@ fn handle_connection(
                 stream
                     .write_all(format!("ERR {message}\n").as_bytes())
                     .and_then(|_| stream.flush())
-                    .map_err(QuoteError::from)?;
+                    .map_err(|err| {
+                        quote_common::quote_error!(IoError, err, "failed to write error response")
+                    })?;
                 warn!("Failed to forward stream request from {peer_addr}: {err}");
             } else {
                 stream
                     .write_all(b"OK\n")
                     .and_then(|_| stream.flush())
-                    .map_err(QuoteError::from)?;
+                    .map_err(|err| {
+                        quote_common::quote_error!(IoError, err, "failed to write OK response")
+                    })?;
                 info!(
                     "Accepted STREAM request from {peer_addr} for {}",
                     request.tickers.join(",")
@@ -106,7 +119,9 @@ fn handle_connection(
             stream
                 .write_all(format!("ERR {}\n", err).as_bytes())
                 .and_then(|_| stream.flush())
-                .map_err(QuoteError::from)?;
+                .map_err(|err| {
+                    quote_common::quote_error!(IoError, err, "failed to write error response")
+                })?;
             warn!("Invalid STREAM command from {peer_addr}: {err}");
         }
     }
@@ -119,8 +134,12 @@ pub fn start_tcp_server(
     addr: &str,
     request_tx: Sender<StreamRequest>,
 ) -> Result<(Sender<()>, thread::JoinHandle<()>), QuoteError> {
-    let listener = TcpListener::bind(addr)?;
-    listener.set_nonblocking(true)?;
+    let listener = TcpListener::bind(addr).map_err(|err| {
+        quote_common::quote_error!(IoError, err, "failed to bind TCP listener to {}", addr)
+    })?;
+    listener.set_nonblocking(true).map_err(|err| {
+        quote_common::quote_error!(IoError, err, "failed to set TCP listener to non-blocking")
+    })?;
     info!("TCP server listening on {addr}");
 
     let (shutdown_tx, shutdown_rx) = crossbeam::channel::bounded(1);
@@ -151,7 +170,9 @@ pub fn start_tcp_server(
             }
             info!("TCP server shutting down");
         })
-        .map_err(QuoteError::from)?;
+        .map_err(|err| {
+            quote_common::quote_error!(IoError, err, "failed to spawn TCP listener thread")
+        })?;
 
     Ok((shutdown_tx, handle))
 }
@@ -171,25 +192,25 @@ mod tests {
     #[test]
     fn test_parse_stream_command_missing_prefix() {
         let err = parse_stream_command("START udp://127.0.0.1:9000 AAPL").expect_err("should fail");
-        assert!(matches!(err, QuoteError::InvalidCommand(_)));
+        assert!(matches!(err, QuoteError::InvalidCommand { .. }));
     }
 
     #[test]
     fn test_parse_stream_command_invalid_address() {
         let err = parse_stream_command("STREAM udp://bad-address AAPL").expect_err("should fail");
-        assert!(matches!(err, QuoteError::InvalidCommand(_)));
+        assert!(matches!(err, QuoteError::InvalidCommand { .. }));
     }
 
     #[test]
     fn test_parse_stream_command_empty_tickers() {
         let err = parse_stream_command("STREAM udp://127.0.0.1:9000   ").expect_err("should fail");
-        assert!(matches!(err, QuoteError::InvalidCommand(_)));
+        assert!(matches!(err, QuoteError::InvalidCommand { .. }));
     }
 
     #[test]
     fn test_parse_stream_command_invalid_ticker() {
         let err =
             parse_stream_command("STREAM udp://127.0.0.1:9000 a$pl").expect_err("should fail");
-        assert!(matches!(err, QuoteError::InvalidCommand(_)));
+        assert!(matches!(err, QuoteError::InvalidCommand { .. }));
     }
 }

@@ -93,7 +93,9 @@ pub fn start_generator(
     let handle = thread::Builder::new()
         .name("quote-generator".to_string())
         .spawn(move || generator.run(sender))
-        .map_err(QuoteError::from)?;
+        .map_err(|err| {
+            quote_common::quote_error!(IoError, err, "failed to spawn quote generator thread")
+        })?;
 
     Ok((receiver, handle))
 }

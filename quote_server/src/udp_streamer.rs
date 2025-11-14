@@ -41,7 +41,9 @@ pub fn start_udp_streamer(
     let handle = thread::Builder::new()
         .name("udp-dispatcher".to_string())
         .spawn(move || dispatcher_loop(quote_rx, command_rx, keepalive_timeout, server_udp_addr))
-        .map_err(QuoteError::from)?;
+        .map_err(|err| {
+            quote_common::quote_error!(IoError, err, "failed to spawn UDP dispatcher thread")
+        })?;
 
     Ok((command_tx, handle))
 }
@@ -106,8 +108,9 @@ fn dispatcher_loop(
                     }
                 }
             }
-            Err(err) if err.kind() == std::io::ErrorKind::WouldBlock
-                || err.kind() == std::io::ErrorKind::TimedOut => {}
+            Err(err)
+                if err.kind() == std::io::ErrorKind::WouldBlock
+                    || err.kind() == std::io::ErrorKind::TimedOut => {}
             Err(err) => {
                 warn!("PING socket recv error: {}", err);
             }
@@ -147,7 +150,14 @@ fn register_client(
                 server_udp_addr,
             )
         })
-        .map_err(QuoteError::from)?;
+        .map_err(|err| {
+            quote_common::quote_error!(
+                IoError,
+                err,
+                "failed to spawn UDP client thread {}",
+                client_id
+            )
+        })?;
 
     clients.insert(
         client_id,

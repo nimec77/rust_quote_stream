@@ -7,7 +7,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use crossbeam::channel;
-use log::{error, info};
+use log::info;
 
 use quote_common::QuoteError;
 
@@ -20,7 +20,8 @@ fn main() {
     env_logger::init();
 
     if let Err(err) = run() {
-        error!("Server initialization failed: {}", err);
+        quote_common::log_error!(err, "Server initialization failed");
+        std::process::exit(1);
     }
 }
 
@@ -45,9 +46,15 @@ fn run() -> Result<(), QuoteError> {
 
     let keepalive_timeout = Duration::from_secs(config.keepalive_timeout_secs);
     let server_tcp_addr: std::net::SocketAddr = config.tcp_addr.parse().map_err(|err| {
-        QuoteError::ConfigError(format!("invalid TCP address '{}': {}", config.tcp_addr, err))
+        quote_common::quote_error!(
+            ConfigError,
+            "invalid TCP address '{}': {}",
+            config.tcp_addr,
+            err
+        )
     })?;
-    let (dispatcher_tx, dispatcher_handle) = start_udp_streamer(quote_rx, keepalive_timeout, server_tcp_addr)?;
+    let (dispatcher_tx, dispatcher_handle) =
+        start_udp_streamer(quote_rx, keepalive_timeout, server_tcp_addr)?;
 
     let (request_tx, request_rx) = channel::unbounded::<StreamRequest>();
     let (_shutdown_tx, tcp_handle) = start_tcp_server(&config.tcp_addr, request_tx.clone())?;
@@ -59,27 +66,27 @@ fn run() -> Result<(), QuoteError> {
         dispatcher_tx
             .send(UdpCommand::AddClient(request))
             .map_err(|err| {
-                QuoteError::NetworkError(format!("failed to register UDP client: {err}"))
+                quote_common::quote_error!(NetworkError, "failed to register UDP client: {}", err)
             })?;
     }
 
     // Wait for TCP server thread to finish
     tcp_handle
         .join()
-        .map_err(|_| QuoteError::NetworkError("tcp server thread panicked".to_string()))?;
+        .map_err(|_| quote_common::quote_error!(NetworkError, "tcp server thread panicked"))?;
 
     drop(request_tx);
 
-    dispatcher_tx
-        .send(UdpCommand::Shutdown)
-        .map_err(|err| QuoteError::NetworkError(format!("failed to stop UDP dispatcher: {err}")))?;
+    dispatcher_tx.send(UdpCommand::Shutdown).map_err(|err| {
+        quote_common::quote_error!(NetworkError, "failed to stop UDP dispatcher: {}", err)
+    })?;
     dispatcher_handle
         .join()
-        .map_err(|_| QuoteError::NetworkError("udp dispatcher thread panicked".to_string()))?;
+        .map_err(|_| quote_common::quote_error!(NetworkError, "udp dispatcher thread panicked"))?;
 
     generator_handle
         .join()
-        .map_err(|_| QuoteError::NetworkError("generator thread panicked".to_string()))?;
+        .map_err(|_| quote_common::quote_error!(NetworkError, "generator thread panicked"))?;
 
     Ok(())
 }

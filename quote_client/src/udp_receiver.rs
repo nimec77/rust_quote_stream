@@ -16,18 +16,24 @@ pub fn spawn_listener(
     shutdown: Arc<AtomicBool>,
 ) -> Result<thread::JoinHandle<()>, QuoteError> {
     socket.set_nonblocking(true).map_err(|err| {
-        QuoteError::NetworkError(format!("failed to set UDP socket nonblocking: {err}"))
+        quote_common::quote_error!(
+            NetworkError,
+            "failed to set UDP socket nonblocking: {}",
+            err
+        )
     })?;
     socket
         .set_read_timeout(Some(Duration::from_millis(200)))
         .map_err(|err| {
-            QuoteError::NetworkError(format!("failed to set UDP read timeout: {err}"))
+            quote_common::quote_error!(NetworkError, "failed to set UDP read timeout: {}", err)
         })?;
 
     let handle = thread::Builder::new()
         .name("udp-listener".to_string())
         .spawn(move || listen_loop(socket, shutdown))
-        .map_err(|err| QuoteError::NetworkError(format!("failed to spawn UDP listener: {err}")))?;
+        .map_err(|err| {
+            quote_common::quote_error!(NetworkError, "failed to spawn UDP listener: {}", err)
+        })?;
 
     Ok(handle)
 }
@@ -41,7 +47,9 @@ pub fn spawn_ping_thread(
     let handle = thread::Builder::new()
         .name("udp-ping".to_string())
         .spawn(move || ping_loop(socket, server_addr, shutdown))
-        .map_err(|err| QuoteError::NetworkError(format!("failed to spawn ping thread: {err}")))?;
+        .map_err(|err| {
+            quote_common::quote_error!(NetworkError, "failed to spawn ping thread: {}", err)
+        })?;
 
     Ok(handle)
 }

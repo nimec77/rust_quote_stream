@@ -29,7 +29,14 @@ pub fn parse() -> CliArgs {
 
 /// Load ticker symbols from the provided file, normalizing to uppercase.
 pub fn load_tickers(path: &Path) -> Result<Vec<String>, QuoteError> {
-    let contents = fs::read_to_string(path)?;
+    let contents = fs::read_to_string(path).map_err(|err| {
+        quote_common::quote_error!(
+            IoError,
+            err,
+            "failed to read ticker file '{}'",
+            path.display()
+        )
+    })?;
     let mut tickers = Vec::new();
     for line in contents.lines() {
         let ticker = line.trim();
@@ -40,10 +47,11 @@ pub fn load_tickers(path: &Path) -> Result<Vec<String>, QuoteError> {
     }
 
     if tickers.is_empty() {
-        return Err(QuoteError::ConfigError(format!(
+        return Err(quote_common::quote_error!(
+            ConfigError,
             "ticker file '{}' contained no symbols",
             path.display()
-        )));
+        ));
     }
 
     Ok(tickers)
@@ -90,7 +98,7 @@ mod tests {
         }
 
         let err = load_tickers(&path).expect_err("should fail");
-        assert!(matches!(err, QuoteError::ConfigError(_)));
+        assert!(matches!(err, QuoteError::ConfigError { .. }));
 
         fs::remove_file(path).unwrap();
     }

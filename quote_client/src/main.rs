@@ -5,7 +5,7 @@ use std::sync::{
 };
 use std::time::Duration;
 
-use log::{error, info};
+use log::info;
 
 use quote_common::QuoteError;
 
@@ -21,7 +21,7 @@ fn main() {
     env_logger::init();
 
     if let Err(err) = run() {
-        error!("Client exited with error: {}", err);
+        quote_common::log_error!(err, "Client exited with error");
         std::process::exit(1);
     }
 }
@@ -31,16 +31,19 @@ fn run() -> Result<(), QuoteError> {
 
     let tickers = load_tickers(&args.tickers_file)?;
     let server_addr: SocketAddr = args.server_addr.parse().map_err(|err| {
-        QuoteError::ConfigError(format!(
-            "invalid server address '{}': {err}",
-            args.server_addr
-        ))
+        quote_common::quote_error!(
+            ConfigError,
+            "invalid server address '{}': {}",
+            args.server_addr,
+            err
+        )
     })?;
 
-    let socket = UdpSocket::bind(("0.0.0.0", args.udp_port))
-        .map_err(|err| QuoteError::NetworkError(format!("failed to bind UDP socket: {err}")))?;
+    let socket = UdpSocket::bind(("0.0.0.0", args.udp_port)).map_err(|err| {
+        quote_common::quote_error!(NetworkError, "failed to bind UDP socket: {}", err)
+    })?;
     let local_addr = socket.local_addr().map_err(|err| {
-        QuoteError::NetworkError(format!("failed to read UDP socket address: {err}"))
+        quote_common::quote_error!(NetworkError, "failed to read UDP socket address: {}", err)
     })?;
 
     let advertised_udp_addr = format!("{}:{}", server_addr.ip(), local_addr.port());
@@ -54,9 +57,9 @@ fn run() -> Result<(), QuoteError> {
     let shutdown = Arc::new(AtomicBool::new(false));
 
     // Clone socket for ping thread before moving original to listener
-    let ping_socket = socket
-        .try_clone()
-        .map_err(|err| QuoteError::NetworkError(format!("failed to clone UDP socket: {err}")))?;
+    let ping_socket = socket.try_clone().map_err(|err| {
+        quote_common::quote_error!(NetworkError, "failed to clone UDP socket: {}", err)
+    })?;
 
     let listener_handle = spawn_listener(socket, Arc::clone(&shutdown))?;
     let ping_handle = spawn_ping_thread(ping_socket, server_addr, Arc::clone(&shutdown))?;
@@ -65,7 +68,9 @@ fn run() -> Result<(), QuoteError> {
     ctrlc::set_handler(move || {
         let _ = signal_tx.send(());
     })
-    .map_err(|err| QuoteError::ConfigError(format!("failed to install Ctrl+C handler: {err}")))?;
+    .map_err(|err| {
+        quote_common::quote_error!(ConfigError, "failed to install Ctrl+C handler: {}", err)
+    })?;
 
     info!("STREAM established; press Ctrl+C to stop.");
     let _ = signal_rx.recv();
@@ -77,10 +82,10 @@ fn run() -> Result<(), QuoteError> {
 
     listener_handle
         .join()
-        .map_err(|_| QuoteError::NetworkError("UDP listener thread panicked".to_string()))?;
+        .map_err(|_| quote_common::quote_error!(NetworkError, "UDP listener thread panicked"))?;
     ping_handle
         .join()
-        .map_err(|_| QuoteError::NetworkError("ping thread panicked".to_string()))?;
+        .map_err(|_| quote_common::quote_error!(NetworkError, "ping thread panicked"))?;
 
     info!("Client shut down cleanly.");
 

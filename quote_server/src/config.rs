@@ -22,29 +22,32 @@ pub struct ServerConfig {
 /// Load server configuration from a TOML file.
 pub fn load_config(path: &Path) -> Result<ServerConfig, QuoteError> {
     let contents = fs::read_to_string(path).map_err(|err| {
-        QuoteError::ConfigError(format!(
+        quote_common::quote_error!(
+            ConfigError,
             "failed to read config file '{}': {}",
             path.display(),
             err
-        ))
+        )
     })?;
 
     let parsed: toml::Table = toml::from_str(&contents).map_err(|err| {
-        QuoteError::ConfigError(format!(
+        quote_common::quote_error!(
+            ConfigError,
             "invalid TOML syntax in '{}': {}",
             path.display(),
             err
-        ))
+        )
     })?;
 
     let tcp_addr = parsed
         .get("tcp_addr")
         .and_then(|v| v.as_str())
         .ok_or_else(|| {
-            QuoteError::ConfigError(format!(
+            quote_common::quote_error!(
+                ConfigError,
                 "missing required field 'tcp_addr' in '{}'",
                 path.display()
-            ))
+            )
         })?
         .to_string();
 
@@ -52,10 +55,11 @@ pub fn load_config(path: &Path) -> Result<ServerConfig, QuoteError> {
         .get("tickers_file")
         .and_then(|v| v.as_str())
         .ok_or_else(|| {
-            QuoteError::ConfigError(format!(
+            quote_common::quote_error!(
+                ConfigError,
                 "missing required field 'tickers_file' in '{}'",
                 path.display()
-            ))
+            )
         })?
         .to_string();
 
@@ -96,7 +100,14 @@ pub fn load_config(path: &Path) -> Result<ServerConfig, QuoteError> {
 
 /// Load ticker symbols from a file, normalizing to uppercase.
 pub fn load_tickers(path: &Path) -> Result<Vec<String>, QuoteError> {
-    let contents = fs::read_to_string(path)?;
+    let contents = fs::read_to_string(path).map_err(|err| {
+        quote_common::quote_error!(
+            IoError,
+            err,
+            "failed to read ticker file '{}'",
+            path.display()
+        )
+    })?;
     let mut tickers = Vec::new();
 
     for line in contents.lines() {
@@ -108,10 +119,11 @@ pub fn load_tickers(path: &Path) -> Result<Vec<String>, QuoteError> {
     }
 
     if tickers.is_empty() {
-        return Err(QuoteError::ConfigError(format!(
+        return Err(quote_common::quote_error!(
+            ConfigError,
             "ticker file '{}' contained no symbols",
             path.display()
-        )));
+        ));
     }
 
     Ok(tickers)
@@ -180,7 +192,7 @@ mod tests {
     fn test_load_config_missing_file() {
         let path = Path::new("/nonexistent/config.toml");
         let err = load_config(path).expect_err("should fail");
-        assert!(matches!(err, QuoteError::ConfigError(_)));
+        assert!(matches!(err, QuoteError::ConfigError { .. }));
         assert!(err.to_string().contains("failed to read config file"));
     }
 
@@ -193,7 +205,7 @@ mod tests {
         drop(file);
 
         let err = load_config(&path).expect_err("should fail");
-        assert!(matches!(err, QuoteError::ConfigError(_)));
+        assert!(matches!(err, QuoteError::ConfigError { .. }));
         assert!(err.to_string().contains("tickers_file"));
 
         fs::remove_file(path).unwrap();
@@ -207,7 +219,7 @@ mod tests {
         drop(file);
 
         let err = load_config(&path).expect_err("should fail");
-        assert!(matches!(err, QuoteError::ConfigError(_)));
+        assert!(matches!(err, QuoteError::ConfigError { .. }));
         assert!(err.to_string().contains("invalid TOML syntax"));
 
         fs::remove_file(path).unwrap();
@@ -238,7 +250,7 @@ mod tests {
         }
 
         let err = load_tickers(&path).expect_err("should fail");
-        assert!(matches!(err, QuoteError::ConfigError(_)));
+        assert!(matches!(err, QuoteError::ConfigError { .. }));
         assert!(err.to_string().contains("contained no symbols"));
 
         fs::remove_file(path).unwrap();
@@ -248,6 +260,6 @@ mod tests {
     fn test_load_tickers_missing_file() {
         let path = Path::new("/nonexistent/tickers.txt");
         let err = load_tickers(path).expect_err("should fail");
-        assert!(matches!(err, QuoteError::IoError(_)));
+        assert!(matches!(err, QuoteError::IoError { .. }));
     }
 }

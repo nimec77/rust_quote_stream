@@ -17,21 +17,25 @@ pub fn send_stream_command(
     let command = build_stream_command(udp_addr, tickers);
     debug!("Connecting to TCP server {}", server_addr);
     let mut stream = TcpStream::connect(server_addr)
-        .map_err(|err| QuoteError::NetworkError(format!("TCP connect failed: {err}")))?;
+        .map_err(|err| quote_common::quote_error!(NetworkError, "TCP connect failed: {}", err))?;
 
     stream
         .set_read_timeout(Some(Duration::from_secs(5)))
-        .map_err(|err| QuoteError::NetworkError(format!("set_read_timeout failed: {err}")))?;
+        .map_err(|err| {
+            quote_common::quote_error!(NetworkError, "set_read_timeout failed: {}", err)
+        })?;
 
     stream
         .write_all(command.as_bytes())
         .and_then(|_| stream.flush())
-        .map_err(|err| QuoteError::NetworkError(format!("failed to send STREAM command: {err}")))?;
+        .map_err(|err| {
+            quote_common::quote_error!(NetworkError, "failed to send STREAM command: {}", err)
+        })?;
 
     let mut reader = BufReader::new(stream);
     let mut response = String::new();
     reader.read_line(&mut response).map_err(|err| {
-        QuoteError::NetworkError(format!("failed to read server response: {err}"))
+        quote_common::quote_error!(NetworkError, "failed to read server response: {}", err)
     })?;
 
     interpret_response(response.trim_end())
@@ -49,12 +53,14 @@ fn interpret_response(response: &str) -> Result<(), QuoteError> {
     }
 
     if let Some(rest) = response.strip_prefix("ERR ") {
-        return Err(QuoteError::InvalidCommand(rest.to_string()));
+        return Err(quote_common::quote_error!(InvalidCommand, "{}", rest));
     }
 
-    Err(QuoteError::ParseError(format!(
-        "unexpected response from server: {response}"
-    )))
+    Err(quote_common::quote_error!(
+        ParseError,
+        "unexpected response from server: {}",
+        response
+    ))
 }
 
 #[cfg(test)]
@@ -75,12 +81,14 @@ mod tests {
     #[test]
     fn test_interpret_response_err() {
         let err = interpret_response("ERR invalid").expect_err("should fail");
-        assert!(matches!(err, QuoteError::InvalidCommand(message) if message == "invalid"));
+        assert!(
+            matches!(err, QuoteError::InvalidCommand { ref message, .. } if message == "invalid")
+        );
     }
 
     #[test]
     fn test_interpret_response_unexpected() {
         let err = interpret_response("UNKNOWN").expect_err("should fail");
-        assert!(matches!(err, QuoteError::ParseError(_)));
+        assert!(matches!(err, QuoteError::ParseError { .. }));
     }
 }
