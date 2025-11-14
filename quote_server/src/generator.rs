@@ -3,6 +3,7 @@ use std::thread;
 use std::time::Duration;
 
 use crossbeam::channel::{self, Receiver, Sender};
+use log::info;
 use rand::{Rng, rng};
 
 use quote_common::{
@@ -74,6 +75,7 @@ impl QuoteGenerator {
                 let volume = self.next_volume(&ticker, &mut rng);
                 let quote = StockQuote::new(ticker.clone(), price, volume);
                 if sender.send(quote).is_err() {
+                    info!("Quote generator shutting down (no active receivers)");
                     return;
                 }
             }
