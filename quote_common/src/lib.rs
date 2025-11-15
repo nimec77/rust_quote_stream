@@ -15,6 +15,9 @@ pub const DEFAULT_INITIAL_PRICE: f64 = 100.0;
 /// Popular tickers receive higher default volume ranges.
 pub const POPULAR_TICKERS: &[&str] = &["AAPL", "MSFT", "TSLA"];
 
+/// Default buffer size for UDP packets.
+pub const BUFFER_SIZE: usize = 2048;
+
 /// Representation of a stock quote transmitted over UDP.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct StockQuote {
@@ -404,5 +407,26 @@ mod tests {
     fn test_error_source_for_other_errors() {
         let err = quote_error!(ParseError, "Bad format");
         assert!(err.source().is_none());
+    }
+
+    #[test]
+    fn test_max_stock_quote_json_size() {
+        // Test with maximum possible values to determine buffer size needed
+        let max_quote = StockQuote {
+            ticker: "GOOGL".to_string(), // Longest ticker from tickers.txt (5 chars)
+            price: 999999.99, // Large price value
+            volume: 4294967295, // Max u32
+            timestamp: 9223372036854775807, // Max i64
+        };
+
+        let json = serde_json::to_vec(&max_quote).expect("serialize max quote");
+        let json_str = serde_json::to_string(&max_quote).expect("serialize max quote to string");
+        
+        println!("Max JSON size: {} bytes", json.len());
+        println!("Max JSON: {}", json_str);
+        
+        // This test documents the maximum size - currently 86 bytes
+        // Buffer should be at least this size, with some safety margin
+        assert!(json.len() <= 128, "JSON should not exceed 128 bytes");
     }
 }

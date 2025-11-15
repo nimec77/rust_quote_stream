@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use log::{debug, info, warn};
 
-use quote_common::{PING_INTERVAL_SECS, QuoteError, StockQuote};
+use quote_common::{BUFFER_SIZE, PING_INTERVAL_SECS, QuoteError, StockQuote};
 
 /// Spawn a thread that listens for UDP quotes until shutdown is signalled.
 pub fn spawn_listener(
@@ -81,7 +81,7 @@ fn ping_loop(socket: UdpSocket, server_addr: SocketAddr, shutdown: Arc<AtomicBoo
 }
 
 fn listen_loop(socket: UdpSocket, shutdown: Arc<AtomicBool>) {
-    let mut buffer = [0u8; 2048];
+    let mut buffer = [0u8; BUFFER_SIZE];
     info!(
         "Listening for UDP quotes on {}",
         socket
