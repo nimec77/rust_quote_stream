@@ -63,18 +63,18 @@ The project is organized as a Cargo workspace with three crates:
 │           Quote Server                      │
 ├─────────────────────────────────────────────┤
 │  Main Thread (TCP Listener)                 │
-│     │                                        │
+│     │                                       │
 │     ├──► Generator Thread                   │
 │     │    └──► MPMC Channel ───┐             │
-│     │                          │             │
+│     │                         │             │
 │     └──► Client Thread 1 ◄────┤             │
-│          ├──► UDP Sender       │             │
-│          └──► Keep-Alive Monitor             │
-│                                │             │
+│          ├──► UDP Sender      │             │
+│          └──► Keep-Alive Monitor            │
+│                               │             │
 │          Client Thread 2 ◄────┤             │
-│          ├──► UDP Sender       │             │
-│          └──► Keep-Alive Monitor             │
-│                                              │
+│          ├──► UDP Sender      │             │
+│          └──► Keep-Alive Monitor            │
+│                                             │
 └─────────────────────────────────────────────┘
                  │  UDP Data
                  │  TCP Control
@@ -83,13 +83,13 @@ The project is organized as a Cargo workspace with three crates:
 │           Quote Client                      │
 ├─────────────────────────────────────────────┤
 │  Main Thread                                │
-│     │                                        │
+│     │                                       │
 │     ├──► UDP Receiver Thread                │
 │     │    └──► Logs Quotes                   │
-│     │                                        │
+│     │                                       │
 │     └──► Ping Thread (Keep-Alive)           │
 │          └──► Sends PING every 2s           │
-│                                              │
+│                                             │
 └─────────────────────────────────────────────┘
 ```
 
