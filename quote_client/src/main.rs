@@ -17,6 +17,8 @@ use cli::{load_tickers, parse};
 use tcp_client::send_stream_command;
 use udp_receiver::{spawn_listener, spawn_ping_thread};
 
+const CLIENT_SHUTDOWN_GRACE_MS: u64 = 200;
+
 fn main() {
     env_logger::init();
 
@@ -78,7 +80,7 @@ fn run() -> Result<(), QuoteError> {
     shutdown.store(true, Ordering::SeqCst);
 
     // Allow threads to notice shutdown signal.
-    std::thread::sleep(Duration::from_millis(200));
+    std::thread::sleep(Duration::from_millis(CLIENT_SHUTDOWN_GRACE_MS));
 
     listener_handle
         .join()

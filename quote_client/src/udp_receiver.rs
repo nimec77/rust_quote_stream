@@ -8,7 +8,17 @@ use std::time::Duration;
 
 use log::{debug, info, warn};
 
-use quote_common::{BUFFER_SIZE, PING_INTERVAL_SECS, QuoteError, StockQuote};
+use quote_common::{
+    BUFFER_SIZE, PING_INTERVAL_SECS, PING_PAYLOAD, QuoteError, StockQuote, UNKNOWN_ADDR_PLACEHOLDER,
+};
+
+// Constants replacing magic numbers/words in this module
+const UDP_READ_TIMEOUT_MS: u64 = 200;
+const PING_LOOP_SLEEP_MS: u64 = 100;
+const WOULD_BLOCK_BACKOFF_MS: u64 = 50;
+const UDP_RECV_ERROR_BACKOFF_MS: u64 = 100;
+const UDP_LISTENER_THREAD_NAME: &str = "udp-listener";
+const UDP_PING_THREAD_NAME: &str = "udp-ping";
 
 /// Spawn a thread that listens for UDP quotes until shutdown is signalled.
 pub fn spawn_listener(
@@ -23,13 +33,13 @@ pub fn spawn_listener(
         )
     })?;
     socket
-        .set_read_timeout(Some(Duration::from_millis(200)))
+        .set_read_timeout(Some(Duration::from_millis(UDP_READ_TIMEOUT_MS)))
         .map_err(|err| {
             quote_common::quote_error!(NetworkError, "failed to set UDP read timeout: {}", err)
         })?;
 
     let handle = thread::Builder::new()
-        .name("udp-listener".to_string())
+        .name(UDP_LISTENER_THREAD_NAME.to_string())
         .spawn(move || listen_loop(socket, shutdown))
         .map_err(|err| {
             quote_common::quote_error!(NetworkError, "failed to spawn UDP listener: {}", err)
@@ -45,7 +55,7 @@ pub fn spawn_ping_thread(
     shutdown: Arc<AtomicBool>,
 ) -> Result<thread::JoinHandle<()>, QuoteError> {
     let handle = thread::Builder::new()
-        .name("udp-ping".to_string())
+        .name(UDP_PING_THREAD_NAME.to_string())
         .spawn(move || ping_loop(socket, server_addr, shutdown))
         .map_err(|err| {
             quote_common::quote_error!(NetworkError, "failed to spawn ping thread: {}", err)
@@ -62,14 +72,14 @@ fn ping_loop(socket: UdpSocket, server_addr: SocketAddr, shutdown: Arc<AtomicBoo
     );
 
     while !shutdown.load(Ordering::SeqCst) {
-        if let Err(err) = socket.send_to(b"PING", server_addr) {
+        if let Err(err) = socket.send_to(PING_PAYLOAD, server_addr) {
             warn!("Failed to send PING to {}: {}", server_addr, err);
         } else {
             debug!("Sent PING to {}", server_addr);
         }
 
         // Sleep for ping interval, but check shutdown flag periodically
-        let sleep_duration = Duration::from_millis(100);
+        let sleep_duration = Duration::from_millis(PING_LOOP_SLEEP_MS);
         let mut elapsed = Duration::ZERO;
         while elapsed < ping_interval && !shutdown.load(Ordering::SeqCst) {
             thread::sleep(sleep_duration);
@@ -87,7 +97,7 @@ fn listen_loop(socket: UdpSocket, shutdown: Arc<AtomicBool>) {
         socket
             .local_addr()
             .map(|addr| addr.to_string())
-            .unwrap_or_else(|_| "<unknown>".into())
+            .unwrap_or_else(|_| UNKNOWN_ADDR_PLACEHOLDER.into())
     );
 
     while !shutdown.load(Ordering::SeqCst) {
@@ -98,12 +108,12 @@ fn listen_loop(socket: UdpSocket, shutdown: Arc<AtomicBool>) {
                 }
             }
             Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
-                thread::sleep(Duration::from_millis(50));
+                thread::sleep(Duration::from_millis(WOULD_BLOCK_BACKOFF_MS));
             }
             Err(err) if err.kind() == std::io::ErrorKind::TimedOut => {}
             Err(err) => {
                 warn!("UDP receive error: {}", err);
-                thread::sleep(Duration::from_millis(100));
+                thread::sleep(Duration::from_millis(UDP_RECV_ERROR_BACKOFF_MS));
             }
         }
     }

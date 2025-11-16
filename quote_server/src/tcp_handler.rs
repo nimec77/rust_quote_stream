@@ -7,7 +7,11 @@ use std::time::Duration;
 use crossbeam::channel::Sender;
 use log::{info, warn};
 
-use quote_common::QuoteError;
+use quote_common::{QuoteError, RESPONSE_ERR_PREFIX, UDP_SCHEME_PREFIX, UNKNOWN_ADDR_PLACEHOLDER};
+
+const STREAM_PREFIX: &str = "STREAM ";
+const TCP_LISTENER_THREAD_NAME: &str = "tcp-listener";
+const TCP_POLL_INTERVAL_MS: u64 = 100;
 
 /// Parsed representation of a valid STREAM command.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,14 +26,14 @@ pub struct StreamRequest {
 pub fn parse_stream_command(command: &str) -> Result<StreamRequest, QuoteError> {
     let trimmed = command.trim();
     let rest = trimmed
-        .strip_prefix("STREAM ")
+        .strip_prefix(STREAM_PREFIX)
         .ok_or_else(|| quote_common::quote_error!(InvalidCommand, "missing STREAM prefix"))?;
 
     let (addr_part, tickers_part) = rest.split_once(' ').ok_or_else(|| {
         quote_common::quote_error!(InvalidCommand, "STREAM command missing ticker list")
     })?;
 
-    let udp_addr = addr_part.strip_prefix("udp://").ok_or_else(|| {
+    let udp_addr = addr_part.strip_prefix(UDP_SCHEME_PREFIX).ok_or_else(|| {
         quote_common::quote_error!(InvalidCommand, "STREAM command missing udp:// prefix")
     })?;
 
@@ -76,7 +80,7 @@ fn handle_connection(
     let peer_addr = stream
         .peer_addr()
         .map(|addr| addr.to_string())
-        .unwrap_or_else(|_| "<unknown>".to_string());
+        .unwrap_or_else(|_| UNKNOWN_ADDR_PLACEHOLDER.to_string());
 
     let mut reader =
         BufReader::new(stream.try_clone().map_err(|err| {
@@ -96,7 +100,7 @@ fn handle_connection(
             if let Err(err) = request_tx.send(request.clone()) {
                 let message = "server unavailable";
                 stream
-                    .write_all(format!("ERR {message}\n").as_bytes())
+                    .write_all(format!("{RESPONSE_ERR_PREFIX}{message}\n").as_bytes())
                     .and_then(|_| stream.flush())
                     .map_err(|err| {
                         quote_common::quote_error!(IoError, err, "failed to write error response")
@@ -104,7 +108,7 @@ fn handle_connection(
                 warn!("Failed to forward stream request from {peer_addr}: {err}");
             } else {
                 stream
-                    .write_all(b"OK\n")
+                    .write_all(format!("{}\n", quote_common::RESPONSE_OK).as_bytes())
                     .and_then(|_| stream.flush())
                     .map_err(|err| {
                         quote_common::quote_error!(IoError, err, "failed to write OK response")
@@ -117,7 +121,7 @@ fn handle_connection(
         }
         Err(err) => {
             stream
-                .write_all(format!("ERR {}\n", err).as_bytes())
+                .write_all(format!("{RESPONSE_ERR_PREFIX}{}\n", err).as_bytes())
                 .and_then(|_| stream.flush())
                 .map_err(|err| {
                     quote_common::quote_error!(IoError, err, "failed to write error response")
@@ -145,9 +149,9 @@ pub fn start_tcp_server(
     let (shutdown_tx, shutdown_rx) = crossbeam::channel::bounded(1);
 
     let handle = thread::Builder::new()
-        .name("tcp-listener".to_string())
+        .name(TCP_LISTENER_THREAD_NAME.to_string())
         .spawn(move || {
-            let poll_interval = Duration::from_millis(100);
+            let poll_interval = Duration::from_millis(TCP_POLL_INTERVAL_MS);
             loop {
                 if shutdown_rx.try_recv().is_ok() {
                     break;

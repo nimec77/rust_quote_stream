@@ -8,9 +8,15 @@ use crossbeam::channel::{self, Receiver, RecvTimeoutError, Sender};
 use log::{debug, info, warn};
 use serde_json::to_vec;
 
-use quote_common::{DEFAULT_KEEPALIVE_TIMEOUT_SECS, QuoteError, StockQuote};
+use quote_common::{DEFAULT_KEEPALIVE_TIMEOUT_SECS, PING_PAYLOAD, QuoteError, StockQuote};
 
 use crate::tcp_handler::StreamRequest;
+
+// Constants replacing magic numbers/words in this module
+const UDP_DISPATCHER_THREAD_NAME: &str = "udp-dispatcher";
+const UDP_CLIENT_THREAD_NAME_PREFIX: &str = "udp-client-";
+const PING_BUFFER_SIZE: usize = 16;
+const CLIENT_RECV_POLL_TIMEOUT_MS: u64 = 100;
 
 /// Commands sent to the UDP dispatcher.
 #[derive(Debug)]
@@ -39,7 +45,7 @@ pub fn start_udp_streamer(
     let (command_tx, command_rx) = channel::unbounded::<UdpCommand>();
 
     let handle = thread::Builder::new()
-        .name("udp-dispatcher".to_string())
+        .name(UDP_DISPATCHER_THREAD_NAME.to_string())
         .spawn(move || dispatcher_loop(quote_rx, command_rx, keepalive_timeout, server_udp_addr))
         .map_err(|err| {
             quote_common::quote_error!(IoError, err, "failed to spawn UDP dispatcher thread")
@@ -71,7 +77,7 @@ fn dispatcher_loop(
         }
     };
 
-    let mut ping_buffer = [0u8; 16];
+    let mut ping_buffer = [0u8; PING_BUFFER_SIZE];
 
     loop {
         crossbeam::channel::select! {
@@ -94,7 +100,7 @@ fn dispatcher_loop(
         // Check for PINGs on shared socket
         match ping_socket.recv_from(&mut ping_buffer) {
             Ok((size, from_addr)) => {
-                if &ping_buffer[..size] == b"PING" {
+                if &ping_buffer[..size] == PING_PAYLOAD {
                     // Find client by UDP address and update last_ping
                     for client in clients.values() {
                         if client.udp_addr == from_addr {
@@ -140,7 +146,7 @@ fn register_client(
     let last_ping_for_thread = Arc::clone(&last_ping);
 
     let handle = thread::Builder::new()
-        .name(format!("udp-client-{client_id}"))
+        .name(format!("{UDP_CLIENT_THREAD_NAME_PREFIX}{client_id}"))
         .spawn(move || {
             client_loop(
                 request_for_thread,
@@ -243,7 +249,7 @@ fn client_loop(
             break;
         }
 
-        match quote_rx.recv_timeout(Duration::from_millis(100)) {
+        match quote_rx.recv_timeout(Duration::from_millis(CLIENT_RECV_POLL_TIMEOUT_MS)) {
             Ok(quote) => match to_vec(&quote) {
                 Ok(payload) => {
                     if let Err(err) = socket.send(&payload) {

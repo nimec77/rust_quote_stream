@@ -4,9 +4,10 @@ use std::time::Duration;
 
 use log::{debug, info};
 
-use quote_common::QuoteError;
+use quote_common::{QuoteError, RESPONSE_ERR_PREFIX, RESPONSE_OK, UDP_SCHEME_PREFIX};
 
 const STREAM_PREFIX: &str = "STREAM";
+const TCP_READ_TIMEOUT_SECS: u64 = 5;
 
 /// Send a STREAM command to the server and verify the response.
 pub fn send_stream_command(
@@ -20,7 +21,7 @@ pub fn send_stream_command(
         .map_err(|err| quote_common::quote_error!(NetworkError, "TCP connect failed: {}", err))?;
 
     stream
-        .set_read_timeout(Some(Duration::from_secs(5)))
+        .set_read_timeout(Some(Duration::from_secs(TCP_READ_TIMEOUT_SECS)))
         .map_err(|err| {
             quote_common::quote_error!(NetworkError, "set_read_timeout failed: {}", err)
         })?;
@@ -43,16 +44,16 @@ pub fn send_stream_command(
 
 fn build_stream_command(udp_addr: &str, tickers: &[String]) -> String {
     let ticker_list = tickers.join(",");
-    format!("{STREAM_PREFIX} udp://{udp_addr} {ticker_list}\n")
+    format!("{STREAM_PREFIX} {UDP_SCHEME_PREFIX}{udp_addr} {ticker_list}\n")
 }
 
 fn interpret_response(response: &str) -> Result<(), QuoteError> {
-    if response == "OK" {
+    if response == RESPONSE_OK {
         info!("STREAM command accepted");
         return Ok(());
     }
 
-    if let Some(rest) = response.strip_prefix("ERR ") {
+    if let Some(rest) = response.strip_prefix(RESPONSE_ERR_PREFIX) {
         return Err(quote_common::quote_error!(InvalidCommand, "{}", rest));
     }
 
