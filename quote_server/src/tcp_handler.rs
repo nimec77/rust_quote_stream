@@ -82,10 +82,7 @@ fn handle_connection(
         .map(|addr| addr.to_string())
         .unwrap_or_else(|_| UNKNOWN_ADDR_PLACEHOLDER.to_string());
 
-    let mut reader =
-        BufReader::new(stream.try_clone().map_err(|err| {
-            quote_common::quote_error!(IoError, err, "failed to clone TCP stream")
-        })?);
+    let mut reader = BufReader::new(&stream);
     let mut line = String::new();
     let bytes_read = reader.read_line(&mut line).map_err(|err| {
         quote_common::quote_error!(IoError, err, "failed to read line from TCP stream")
