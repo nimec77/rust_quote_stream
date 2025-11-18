@@ -1,8 +1,6 @@
 use std::net::{SocketAddr, UdpSocket};
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
-};
+use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use log::info;
@@ -56,7 +54,8 @@ fn run() -> Result<(), QuoteError> {
 
     send_stream_command(&args.server_addr, &advertised_udp_addr, &tickers)?;
 
-    let shutdown = Arc::new(AtomicBool::new(false));
+    // Set up shutdown flag for thread coordination
+    let shutdown = quote_common::setup_shutdown_flag()?;
 
     // Clone socket for ping thread before moving original to listener
     let ping_socket = socket.try_clone().map_err(|err| {
@@ -66,18 +65,12 @@ fn run() -> Result<(), QuoteError> {
     let listener_handle = spawn_listener(socket, Arc::clone(&shutdown))?;
     let ping_handle = spawn_ping_thread(ping_socket, server_addr, Arc::clone(&shutdown))?;
 
-    let (signal_tx, signal_rx) = std::sync::mpsc::channel::<()>();
-    ctrlc::set_handler(move || {
-        let _ = signal_tx.send(());
-    })
-    .map_err(|err| {
-        quote_common::quote_error!(ConfigError, "failed to install Ctrl+C handler: {}", err)
-    })?;
-
     info!("STREAM established; press Ctrl+C to stop.");
-    let _ = signal_rx.recv();
 
-    shutdown.store(true, Ordering::SeqCst);
+    // Wait for shutdown signal (set by Ctrl+C handler)
+    while !shutdown.load(Ordering::SeqCst) {
+        std::thread::sleep(Duration::from_millis(100));
+    }
 
     // Allow threads to notice shutdown signal.
     std::thread::sleep(Duration::from_millis(CLIENT_SHUTDOWN_GRACE_MS));

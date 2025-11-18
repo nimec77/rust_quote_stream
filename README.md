@@ -52,7 +52,7 @@ cargo run --release --bin quote_client -- \
 
 The project is organized as a Cargo workspace with three crates:
 
-- **`quote_common`** – Shared library with data types (`StockQuote`, `QuoteError`), constants, and error handling macros with automatic location tracking
+- **`quote_common`** – Shared library with data types (`StockQuote`, `QuoteError`), constants, error handling macros with automatic location tracking, and shutdown utilities
 - **`quote_server`** – Multi-threaded quote generator with TCP/UDP streaming server and keep-alive monitoring
 - **`quote_client`** – CLI-based client for consuming streamed quotes with automatic reconnection and graceful shutdown
 
@@ -271,6 +271,7 @@ PING
 - **Zero-copy filtering**: Efficient ticker matching without unnecessary allocations
 - **Resource management**: All threads properly joined, sockets explicitly closed
 - **Configuration validation**: TOML-based server config with validation and clear error messages
+- **Shutdown utilities**: Common signal handling utilities (`setup_shutdown_signal()` for channels, `setup_shutdown_flag()` for polling)
 - **Test coverage**: 37 unit tests across all crates (quote_common: 9, quote_server: 18, quote_client: 10)
 
 ## 🛠️ Technologies & Dependencies
@@ -538,6 +539,19 @@ This project demonstrates:
 - **Latency**: Sub-millisecond quote distribution via MPMC channels
 - **Throughput**: Capable of 1000+ quotes/second with 100+ tickers
 - **Packet Loss**: UDP streaming tolerates packet loss gracefully
+
+## 🐛 Bug Fixes & Improvements
+
+### Shutdown Deadlock Fix (Issue #1)
+
+The server previously had a deadlock bug that prevented graceful shutdown. This has been resolved with proper channel lifecycle management and signal handling.
+
+**Key improvements:**
+- ✅ Proper Ctrl+C (SIGINT) signal handling
+- ✅ Coordinated shutdown sequence across all threads
+- ✅ Resource cleanup guaranteed (threads joined, sockets closed)
+- ✅ Sub-second graceful shutdown with full logging
+- ✅ Common shutdown utilities in `quote_common` (eliminates code duplication)
 
 ## 📜 License
 

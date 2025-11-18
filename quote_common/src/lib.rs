@@ -1,8 +1,14 @@
 //! Shared types and utilities for the quote streaming system.
 
 use chrono::Utc;
+use crossbeam::channel;
+use log::info;
 use serde::{Deserialize, Serialize};
 use std::backtrace::Backtrace;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
 /// Default quote generation interval in milliseconds.
 pub const DEFAULT_QUOTE_RATE_MS: u64 = 1_000;
@@ -28,6 +34,94 @@ pub const RESPONSE_OK: &str = "OK";
 pub const RESPONSE_ERR_PREFIX: &str = "ERR ";
 /// Placeholder used when socket addresses are unavailable.
 pub const UNKNOWN_ADDR_PLACEHOLDER: &str = "<unknown>";
+
+// ============================================================================
+// Shutdown Utilities
+// ============================================================================
+
+/// Creates a channel-based Ctrl+C signal handler suitable for use with select!.
+///
+/// This is ideal for servers or components that use crossbeam's select! macro
+/// to coordinate multiple event sources (e.g., incoming requests + shutdown signal).
+///
+/// # Returns
+///
+/// A `Receiver<()>` that will receive a message when Ctrl+C is pressed.
+///
+/// # Errors
+///
+/// Returns `QuoteError::ConfigError` if the signal handler cannot be installed.
+///
+/// # Example
+///
+/// ```ignore
+/// let shutdown_rx = quote_common::setup_shutdown_signal()?;
+///
+/// loop {
+///     crossbeam::channel::select! {
+///         recv(work_rx) -> msg => { /* process work */ }
+///         recv(shutdown_rx) -> _ => {
+///             info!("Shutdown signal received");
+///             break;
+///         }
+///     }
+/// }
+/// ```
+pub fn setup_shutdown_signal() -> Result<channel::Receiver<()>, QuoteError> {
+    let (tx, rx) = channel::bounded::<()>(1);
+    ctrlc::set_handler(move || {
+        info!("Received shutdown signal (Ctrl+C)");
+        let _ = tx.send(());
+    })
+    .map_err(|err| quote_error!(ConfigError, "failed to install Ctrl+C handler: {}", err))?;
+    Ok(rx)
+}
+
+/// Creates an atomic flag-based Ctrl+C signal handler suitable for thread polling.
+///
+/// This is ideal for clients or components where multiple threads periodically
+/// check a shutdown flag (e.g., worker threads with their own event loops).
+///
+/// # Returns
+///
+/// An `Arc<AtomicBool>` that will be set to `true` when Ctrl+C is pressed.
+/// The returned Arc can be cloned and shared across multiple threads.
+///
+/// # Errors
+///
+/// Returns `QuoteError::ConfigError` if the signal handler cannot be installed.
+///
+/// # Example
+///
+/// ```ignore
+/// let shutdown = quote_common::setup_shutdown_flag()?;
+/// let shutdown_clone = Arc::clone(&shutdown);
+///
+/// thread::spawn(move || {
+///     while !shutdown_clone.load(Ordering::SeqCst) {
+///         // Do work...
+///     }
+/// });
+///
+/// // Wait for Ctrl+C
+/// while !shutdown.load(Ordering::SeqCst) {
+///     thread::sleep(Duration::from_millis(100));
+/// }
+/// ```
+pub fn setup_shutdown_flag() -> Result<Arc<AtomicBool>, QuoteError> {
+    let flag = Arc::new(AtomicBool::new(false));
+    let flag_clone = Arc::clone(&flag);
+    ctrlc::set_handler(move || {
+        info!("Received shutdown signal (Ctrl+C)");
+        flag_clone.store(true, Ordering::SeqCst);
+    })
+    .map_err(|err| quote_error!(ConfigError, "failed to install Ctrl+C handler: {}", err))?;
+    Ok(flag)
+}
+
+// ============================================================================
+// Data Types
+// ============================================================================
 
 /// Representation of a stock quote transmitted over UDP.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

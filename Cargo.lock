@@ -528,6 +528,8 @@ name = "quote_common"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "crossbeam",
+ "ctrlc",
  "log",
  "serde",
  "serde_json",
@@ -538,6 +540,7 @@ name = "quote_server"
 version = "0.1.0"
 dependencies = [
  "crossbeam",
+ "ctrlc",
  "env_logger",
  "log",
  "quote_common",
