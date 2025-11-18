@@ -1,5 +1,5 @@
 use std::io::{BufRead, BufReader, Write};
-use std::net::TcpStream;
+use std::net::{IpAddr, TcpStream};
 use std::time::Duration;
 
 use log::{debug, info};
@@ -10,15 +10,31 @@ const STREAM_PREFIX: &str = "STREAM";
 const TCP_READ_TIMEOUT_SECS: u64 = 5;
 
 /// Send a STREAM command to the server and verify the response.
+/// Returns the client's IP address as seen from the TCP connection.
+/// The UDP address is constructed using the client's IP from the TCP connection
+/// and the provided UDP port, ensuring the server can send UDP packets back.
 pub fn send_stream_command(
     server_addr: &str,
-    udp_addr: &str,
+    udp_port: u16,
     tickers: &[String],
-) -> Result<(), QuoteError> {
-    let command = build_stream_command(udp_addr, tickers);
+) -> Result<IpAddr, QuoteError> {
     debug!("Connecting to TCP server {}", server_addr);
     let mut stream = TcpStream::connect(server_addr)
         .map_err(|err| quote_common::quote_error!(NetworkError, "TCP connect failed: {}", err))?;
+
+    // Get the client's IP address from the TCP connection's local address.
+    // This is the IP address the client uses to reach the server, which is
+    // the correct address to advertise for UDP reception.
+    let client_ip = stream
+        .local_addr()
+        .map_err(|err| {
+            quote_common::quote_error!(NetworkError, "failed to get TCP local address: {}", err)
+        })?
+        .ip();
+
+    // Construct the UDP address using the client's IP and the provided port
+    let udp_addr = format!("{}:{}", client_ip, udp_port);
+    let command = build_stream_command(&udp_addr, tickers);
 
     stream
         .set_read_timeout(Some(Duration::from_secs(TCP_READ_TIMEOUT_SECS)))
@@ -39,7 +55,8 @@ pub fn send_stream_command(
         quote_common::quote_error!(NetworkError, "failed to read server response: {}", err)
     })?;
 
-    interpret_response(response.trim_end())
+    interpret_response(response.trim_end())?;
+    Ok(client_ip)
 }
 
 fn build_stream_command(udp_addr: &str, tickers: &[String]) -> String {

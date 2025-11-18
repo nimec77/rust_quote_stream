@@ -153,12 +153,15 @@ RUST_LOG=info cargo run --bin quote_client -- \
 The client will:
 1. Parse command-line arguments
 2. Load ticker symbols from the specified file
-3. Bind a UDP socket on the specified port
+3. Bind a UDP socket on the specified port (listens on all interfaces: `0.0.0.0`)
 4. Connect to the server via TCP
-5. Send a STREAM command with the UDP address and ticker list
-6. Receive and log quotes matching the requested tickers
-7. Send PING messages every 2 seconds to maintain connection
-8. Gracefully shutdown on Ctrl+C
+5. Automatically detect client IP from the TCP connection
+6. Send a STREAM command with the correct UDP address (client IP + port) and ticker list
+7. Receive and log quotes matching the requested tickers
+8. Send PING messages every 2 seconds to maintain connection
+9. Gracefully shutdown on Ctrl+C
+
+**Note:** The client automatically detects its IP address from the TCP connection to the server. This ensures the server can send UDP packets back to the correct address, even when the client and server are on different machines or networks.
 
 ## Configuration
 
@@ -336,14 +339,15 @@ cargo test --release
 
 ```
 [2025-11-14T10:15:30Z INFO  quote_client] Bound UDP listener on 0.0.0.0:34254 (advertising to server as 127.0.0.1:34254)
-[2025-11-14T10:15:30Z INFO  quote_client] Connected to server at 127.0.0.1:8080
-[2025-11-14T10:15:30Z INFO  quote_client] Server responded: OK
+[2025-11-14T10:15:30Z INFO  quote_client] STREAM command accepted
 [2025-11-14T10:15:30Z INFO  quote_client] STREAM established; press Ctrl+C to stop.
 [2025-11-14T10:15:31Z INFO  quote_client] [AAPL] $151.23 | Vol: 4520 | Time: 1699964131245
 [2025-11-14T10:15:31Z INFO  quote_client] [GOOGL] $141.87 | Vol: 3210 | Time: 1699964131245
 [2025-11-14T10:15:31Z INFO  quote_client] [TSLA] $248.95 | Vol: 5340 | Time: 1699964131245
 [2025-11-14T10:15:32Z INFO  quote_client] [AAPL] $150.98 | Vol: 4680 | Time: 1699964132250
 ```
+
+**Note:** The client automatically detects its IP address (`127.0.0.1` in this example) from the TCP connection and advertises it to the server. This ensures UDP packets are sent to the correct address.
 
 ### Error Output (with Location & Backtrace)
 

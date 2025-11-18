@@ -46,13 +46,16 @@ fn run() -> Result<(), QuoteError> {
         quote_common::quote_error!(NetworkError, "failed to read UDP socket address: {}", err)
     })?;
 
-    let advertised_udp_addr = format!("{}:{}", server_addr.ip(), local_addr.port());
+    // Send STREAM command and get the client's IP address from the TCP connection.
+    // The function constructs the UDP address using the client's IP (from TCP connection)
+    // and the UDP port, ensuring the server can send UDP packets back to this client.
+    let client_ip = send_stream_command(&args.server_addr, local_addr.port(), &tickers)?;
+    let advertised_udp_addr = format!("{}:{}", client_ip, local_addr.port());
+
     info!(
         "Bound UDP listener on {} (advertising to server as {})",
         local_addr, advertised_udp_addr
     );
-
-    send_stream_command(&args.server_addr, &advertised_udp_addr, &tickers)?;
 
     // Set up shutdown flag for thread coordination
     let shutdown = quote_common::setup_shutdown_flag()?;
