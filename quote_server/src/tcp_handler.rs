@@ -132,7 +132,7 @@ fn handle_connection(
 
 /// Start TCP server listening for STREAM commands, returning a shutdown sender and join handle.
 pub fn start_tcp_server(
-    addr: &str,
+    addr: SocketAddr,
     request_tx: Sender<StreamRequest>,
 ) -> Result<(Sender<()>, thread::JoinHandle<()>), QuoteError> {
     let listener = TcpListener::bind(addr).map_err(|err| {

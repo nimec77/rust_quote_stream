@@ -1,4 +1,5 @@
 use std::fs;
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
 use clap::Parser;
@@ -11,7 +12,7 @@ use quote_common::QuoteError;
 pub struct CliArgs {
     /// TCP address of the quote server (e.g., 127.0.0.1:8080)
     #[arg(long = "server-addr")]
-    pub server_addr: String,
+    pub server_addr: SocketAddr,
 
     /// Local UDP port to bind for receiving quotes
     #[arg(long = "udp-port")]

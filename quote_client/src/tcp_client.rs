@@ -1,5 +1,5 @@
 use std::io::{BufRead, BufReader, Write};
-use std::net::{IpAddr, TcpStream};
+use std::net::{IpAddr, SocketAddr, TcpStream};
 use std::time::Duration;
 
 use log::{debug, info};
@@ -14,7 +14,7 @@ const TCP_READ_TIMEOUT_SECS: u64 = 5;
 /// The UDP address is constructed using the client's IP from the TCP connection
 /// and the provided UDP port, ensuring the server can send UDP packets back.
 pub fn send_stream_command(
-    server_addr: &str,
+    server_addr: SocketAddr,
     udp_port: u16,
     tickers: &[String],
 ) -> Result<IpAddr, QuoteError> {
@@ -33,8 +33,8 @@ pub fn send_stream_command(
         .ip();
 
     // Construct the UDP address using the client's IP and the provided port
-    let udp_addr = format!("{}:{}", client_ip, udp_port);
-    let command = build_stream_command(&udp_addr, tickers);
+    let udp_addr = SocketAddr::new(client_ip, udp_port);
+    let command = build_stream_command(udp_addr, tickers);
 
     stream
         .set_read_timeout(Some(Duration::from_secs(TCP_READ_TIMEOUT_SECS)))
@@ -59,7 +59,7 @@ pub fn send_stream_command(
     Ok(client_ip)
 }
 
-fn build_stream_command(udp_addr: &str, tickers: &[String]) -> String {
+fn build_stream_command(udp_addr: SocketAddr, tickers: &[String]) -> String {
     let ticker_list = tickers.join(",");
     format!("{STREAM_PREFIX} {UDP_SCHEME_PREFIX}{udp_addr} {ticker_list}\n")
 }
@@ -87,7 +87,8 @@ mod tests {
 
     #[test]
     fn test_build_stream_command_formats_correctly() {
-        let cmd = build_stream_command("127.0.0.1:4000", &["AAPL".into(), "TSLA".into()]);
+        let addr: SocketAddr = "127.0.0.1:4000".parse().unwrap();
+        let cmd = build_stream_command(addr, &["AAPL".into(), "TSLA".into()]);
         assert_eq!(cmd, "STREAM udp://127.0.0.1:4000 AAPL,TSLA\n");
     }
 

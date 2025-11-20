@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
+use std::net::SocketAddr;
 use std::path::Path;
 
 use quote_common::{DEFAULT_KEEPALIVE_TIMEOUT_SECS, DEFAULT_QUOTE_RATE_MS, QuoteError};
@@ -8,7 +9,7 @@ use quote_common::{DEFAULT_KEEPALIVE_TIMEOUT_SECS, DEFAULT_QUOTE_RATE_MS, QuoteE
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
     /// TCP address to bind the server listener (e.g., "127.0.0.1:8080").
-    pub tcp_addr: String,
+    pub tcp_addr: SocketAddr,
     /// Path to file containing ticker symbols (one per line).
     pub tickers_file: String,
     /// Quote generation interval in milliseconds.
@@ -39,7 +40,7 @@ pub fn load_config(path: &Path) -> Result<ServerConfig, QuoteError> {
         )
     })?;
 
-    let tcp_addr = parsed
+    let tcp_addr_str = parsed
         .get("tcp_addr")
         .and_then(|v| v.as_str())
         .ok_or_else(|| {
@@ -48,8 +49,16 @@ pub fn load_config(path: &Path) -> Result<ServerConfig, QuoteError> {
                 "missing required field 'tcp_addr' in '{}'",
                 path.display()
             )
-        })?
-        .to_string();
+        })?;
+    let tcp_addr = tcp_addr_str.parse::<SocketAddr>().map_err(|err| {
+        quote_common::quote_error!(
+            ConfigError,
+            "invalid TCP address '{}' in '{}': {}",
+            tcp_addr_str,
+            path.display(),
+            err
+        )
+    })?;
 
     let tickers_file = parsed
         .get("tickers_file")
@@ -159,7 +168,7 @@ mod tests {
         drop(file);
 
         let config = load_config(&path).expect("load config");
-        assert_eq!(config.tcp_addr, "127.0.0.1:8080");
+        assert_eq!(config.tcp_addr, "127.0.0.1:8080".parse::<SocketAddr>().unwrap());
         assert_eq!(config.tickers_file, "tickers.txt");
         assert_eq!(config.quote_rate_ms, 500);
         assert_eq!(config.keepalive_timeout_secs, 10);

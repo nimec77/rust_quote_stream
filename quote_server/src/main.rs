@@ -51,20 +51,12 @@ fn run(shutdown_signal_rx: crossbeam::channel::Receiver<()>) -> Result<(), Quote
     )?;
 
     let keepalive_timeout = Duration::from_secs(config.keepalive_timeout_secs);
-    let server_tcp_addr: std::net::SocketAddr = config.tcp_addr.parse().map_err(|err| {
-        quote_common::quote_error!(
-            ConfigError,
-            "invalid TCP address '{}': {}",
-            config.tcp_addr,
-            err
-        )
-    })?;
     let (dispatcher_tx, dispatcher_handle) =
-        start_udp_streamer(quote_rx, keepalive_timeout, server_tcp_addr)?;
+        start_udp_streamer(quote_rx, keepalive_timeout, config.tcp_addr)?;
 
     let (request_tx, request_rx) = channel::unbounded::<StreamRequest>();
     // FIX: Store shutdown_tx instead of dropping it immediately with underscore
-    let (shutdown_tx, tcp_handle) = start_tcp_server(&config.tcp_addr, request_tx.clone())?;
+    let (shutdown_tx, tcp_handle) = start_tcp_server(config.tcp_addr, request_tx.clone())?;
 
     // Drop main thread's sender - TCP thread now owns the only active sender
     // This allows the recv loop to exit when TCP thread finishes

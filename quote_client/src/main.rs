@@ -1,4 +1,4 @@
-use std::net::{SocketAddr, UdpSocket};
+use std::net::UdpSocket;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
@@ -30,14 +30,6 @@ fn run() -> Result<(), QuoteError> {
     let args = parse();
 
     let tickers = load_tickers(&args.tickers_file)?;
-    let server_addr: SocketAddr = args.server_addr.parse().map_err(|err| {
-        quote_common::quote_error!(
-            ConfigError,
-            "invalid server address '{}': {}",
-            args.server_addr,
-            err
-        )
-    })?;
 
     let socket = UdpSocket::bind(("0.0.0.0", args.udp_port)).map_err(|err| {
         quote_common::quote_error!(NetworkError, "failed to bind UDP socket: {}", err)
@@ -49,7 +41,7 @@ fn run() -> Result<(), QuoteError> {
     // Send STREAM command and get the client's IP address from the TCP connection.
     // The function constructs the UDP address using the client's IP (from TCP connection)
     // and the UDP port, ensuring the server can send UDP packets back to this client.
-    let client_ip = send_stream_command(&args.server_addr, local_addr.port(), &tickers)?;
+    let client_ip = send_stream_command(args.server_addr, local_addr.port(), &tickers)?;
     let advertised_udp_addr = format!("{}:{}", client_ip, local_addr.port());
 
     info!(
@@ -66,7 +58,7 @@ fn run() -> Result<(), QuoteError> {
     })?;
 
     let listener_handle = spawn_listener(socket, Arc::clone(&shutdown))?;
-    let ping_handle = spawn_ping_thread(ping_socket, server_addr, Arc::clone(&shutdown))?;
+    let ping_handle = spawn_ping_thread(ping_socket, args.server_addr, Arc::clone(&shutdown))?;
 
     info!("STREAM established; press Ctrl+C to stop.");
 
