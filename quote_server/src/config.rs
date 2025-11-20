@@ -168,7 +168,10 @@ mod tests {
         drop(file);
 
         let config = load_config(&path).expect("load config");
-        assert_eq!(config.tcp_addr, "127.0.0.1:8080".parse::<SocketAddr>().unwrap());
+        assert_eq!(
+            config.tcp_addr,
+            "127.0.0.1:8080".parse::<SocketAddr>().unwrap()
+        );
         assert_eq!(config.tickers_file, "tickers.txt");
         assert_eq!(config.quote_rate_ms, 500);
         assert_eq!(config.keepalive_timeout_secs, 10);

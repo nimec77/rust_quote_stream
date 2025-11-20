@@ -88,7 +88,7 @@ fn run(shutdown_signal_rx: crossbeam::channel::Receiver<()>) -> Result<(), Quote
 
     // Signal TCP server to shutdown
     info!("Signaling TCP server shutdown...");
-    let _ = shutdown_tx.send(());  // Send shutdown signal
+    let _ = shutdown_tx.send(()); // Send shutdown signal
     drop(shutdown_tx);
 
     // Wait for TCP server thread to finish
